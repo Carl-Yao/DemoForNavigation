@@ -7,6 +7,7 @@
 //
 
 #import "AppDelegate.h"
+#import "ViewController.h"
 
 @interface AppDelegate ()
 
@@ -17,6 +18,27 @@
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     // Override point for customization after application launch.
+    self.window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
+    UITabBarController * tabController = [[UITabBarController alloc] init];
+    UINavigationController * nav1 = [[UINavigationController alloc] initWithRootViewController:[[ViewController alloc]init]];//UIViewController可以自定义
+    nav1.tabBarItem.title = @"first";
+    nav1.tabBarItem.image = nil;
+//    nav1.navigationBar.backgroundColor = [UIColor redColor];//背景而已
+    nav1.navigationBar.barTintColor = [UIColor redColor];
+    nav1.hidesBottomBarWhenPushed = YES;
+    //看来标题要在每个vc中设置self.title
+//    nav1.title = @"first";
+//    nav1.navigationItem.title = @"first";
+    UINavigationController * nav2 = [[UINavigationController alloc] initWithRootViewController:[[UIViewController alloc]init]];
+    nav2.tabBarItem.title = @"second";
+    nav2.tabBarItem.image = nil;
+    UINavigationController * nav3 = [[UINavigationController alloc] initWithRootViewController:[[UIViewController alloc]init]];
+    nav3.tabBarItem.title = @"three";
+    nav3.tabBarItem.image = nil;
+    [tabController setViewControllers:@[nav1,nav2,nav3]];
+    self.window.rootViewController = tabController;//[[UINavigationController alloc] init];
+    //[[ViewController alloc] init];
+    [self.window makeKeyAndVisible];
     return YES;
 }
 

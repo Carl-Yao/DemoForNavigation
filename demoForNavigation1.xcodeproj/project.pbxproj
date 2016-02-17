@@ -10,7 +10,6 @@
 		5D5E70E61C7320D400CBCB42 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 5D5E70E51C7320D400CBCB42 /* main.m */; };
 		5D5E70E91C7320D400CBCB42 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 5D5E70E81C7320D400CBCB42 /* AppDelegate.m */; };
 		5D5E70EC1C7320D400CBCB42 /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 5D5E70EB1C7320D400CBCB42 /* ViewController.m */; };
-		5D5E70EF1C7320D400CBCB42 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 5D5E70ED1C7320D400CBCB42 /* Main.storyboard */; };
 		5D5E70F11C7320D400CBCB42 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5D5E70F01C7320D400CBCB42 /* Assets.xcassets */; };
 		5D5E70F41C7320D400CBCB42 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 5D5E70F21C7320D400CBCB42 /* LaunchScreen.storyboard */; };
 /* End PBXBuildFile section */
@@ -22,7 +21,6 @@
 		5D5E70E81C7320D400CBCB42 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
 		5D5E70EA1C7320D400CBCB42 /* ViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ViewController.h; sourceTree = "<group>"; };
 		5D5E70EB1C7320D400CBCB42 /* ViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ViewController.m; sourceTree = "<group>"; };
-		5D5E70EE1C7320D400CBCB42 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		5D5E70F01C7320D400CBCB42 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5D5E70F31C7320D400CBCB42 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		5D5E70F51C7320D400CBCB42 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -62,7 +60,6 @@
 				5D5E70E81C7320D400CBCB42 /* AppDelegate.m */,
 				5D5E70EA1C7320D400CBCB42 /* ViewController.h */,
 				5D5E70EB1C7320D400CBCB42 /* ViewController.m */,
-				5D5E70ED1C7320D400CBCB42 /* Main.storyboard */,
 				5D5E70F01C7320D400CBCB42 /* Assets.xcassets */,
 				5D5E70F21C7320D400CBCB42 /* LaunchScreen.storyboard */,
 				5D5E70F51C7320D400CBCB42 /* Info.plist */,
@@ -138,7 +135,6 @@
 			files = (
 				5D5E70F41C7320D400CBCB42 /* LaunchScreen.storyboard in Resources */,
 				5D5E70F11C7320D400CBCB42 /* Assets.xcassets in Resources */,
-				5D5E70EF1C7320D400CBCB42 /* Main.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -158,14 +154,6 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXVariantGroup section */
-		5D5E70ED1C7320D400CBCB42 /* Main.storyboard */ = {
-			isa = PBXVariantGroup;
-			children = (
-				5D5E70EE1C7320D400CBCB42 /* Base */,
-			);
-			name = Main.storyboard;
-			sourceTree = "<group>";
-		};
 		5D5E70F21C7320D400CBCB42 /* LaunchScreen.storyboard */ = {
 			isa = PBXVariantGroup;
 			children = (
@@ -262,6 +250,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				INFOPLIST_FILE = demoForNavigation1/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = YZX.demoForNavigation1;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -273,6 +262,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				INFOPLIST_FILE = demoForNavigation1/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = YZX.demoForNavigation1;
 				PRODUCT_NAME = "$(TARGET_NAME)";
