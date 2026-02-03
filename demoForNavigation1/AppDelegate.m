@@ -9,6 +9,7 @@
 #import "AppDelegate.h"
 #import "ViewController.h"
 #import "BallBouncingViewController.h"
+#import "CourtLineViewController.h"
 
 @interface AppDelegate ()
 
@@ -34,9 +35,10 @@
     nav2.tabBarItem.title = @"拍球检测";
     nav2.tabBarItem.image = nil;
     nav2.navigationBar.barTintColor = [UIColor colorWithRed:0.2 green:0.6 blue:0.2 alpha:1.0];
-    UINavigationController * nav3 = [[UINavigationController alloc] initWithRootViewController:[[UIViewController alloc]init]];
-    nav3.tabBarItem.title = @"three";
+    UINavigationController * nav3 = [[UINavigationController alloc] initWithRootViewController:[[CourtLineViewController alloc]init]];
+    nav3.tabBarItem.title = @"场地线";
     nav3.tabBarItem.image = nil;
+    nav3.navigationBar.barTintColor = [UIColor colorWithRed:0.1 green:0.4 blue:0.8 alpha:1.0];
     [tabController setViewControllers:@[nav1,nav2,nav3]];
     self.window.rootViewController = tabController;//[[UINavigationController alloc] init];
     //[[ViewController alloc] init];
