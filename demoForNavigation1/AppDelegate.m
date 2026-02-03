@@ -8,6 +8,7 @@
 
 #import "AppDelegate.h"
 #import "ViewController.h"
+#import "BallBouncingViewController.h"
 
 @interface AppDelegate ()
 
@@ -29,9 +30,10 @@
     //看来标题要在每个vc中设置self.title
 //    nav1.title = @"first";
 //    nav1.navigationItem.title = @"first";
-    UINavigationController * nav2 = [[UINavigationController alloc] initWithRootViewController:[[UIViewController alloc]init]];
-    nav2.tabBarItem.title = @"second";
+    UINavigationController * nav2 = [[UINavigationController alloc] initWithRootViewController:[[BallBouncingViewController alloc]init]];
+    nav2.tabBarItem.title = @"拍球检测";
     nav2.tabBarItem.image = nil;
+    nav2.navigationBar.barTintColor = [UIColor colorWithRed:0.2 green:0.6 blue:0.2 alpha:1.0];
     UINavigationController * nav3 = [[UINavigationController alloc] initWithRootViewController:[[UIViewController alloc]init]];
     nav3.tabBarItem.title = @"three";
     nav3.tabBarItem.image = nil;

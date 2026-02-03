@@ -9,6 +9,7 @@ This document provides guidance for AI assistants working with this iOS navigati
 - UINavigationController stack-based navigation
 - View controller hierarchy and transitions
 - Programmatic UI setup (no storyboards for main UI)
+- **Ball Bouncing Detection** - Uses Vision framework to detect ball bouncing actions via body pose estimation
 
 **Created:** February 2016 by 姚振兴 (Yao Zhenxing)
 
@@ -18,8 +19,8 @@ This document provides guidance for AI assistants working with this iOS navigati
 |------------|---------|
 | Language | Objective-C |
 | Platform | iOS (iPhone) |
-| Minimum iOS Version | 9.0 |
-| Frameworks | UIKit, Foundation |
+| Minimum iOS Version | 14.0 |
+| Frameworks | UIKit, Foundation, AVFoundation, Vision |
 | Build System | Xcode (xcodebuild) |
 | Memory Management | ARC (Automatic Reference Counting) |
 
@@ -33,6 +34,10 @@ This document provides guidance for AI assistants working with this iOS navigati
 │   ├── AppDelegate.m                      # Application delegate implementation
 │   ├── ViewController.h                   # Main view controller interface
 │   ├── ViewController.m                   # Main view controller implementation
+│   ├── BallBouncingDetector.h             # Ball bouncing detection interface
+│   ├── BallBouncingDetector.m             # Ball bouncing detection implementation
+│   ├── BallBouncingViewController.h       # Ball bouncing view controller interface
+│   ├── BallBouncingViewController.m       # Ball bouncing view controller implementation
 │   ├── main.m                             # Application entry point
 │   ├── Info.plist                         # App configuration and metadata
 │   ├── Assets.xcassets/                   # Image and asset catalog
@@ -50,8 +55,10 @@ This document provides guidance for AI assistants working with this iOS navigati
 |------|---------|
 | `AppDelegate.m` | Sets up the tab bar controller with 3 tabs and navigation controllers |
 | `ViewController.m` | Demonstrates navigation push/pop and navigation bar customization |
+| `BallBouncingDetector.m` | Core detection logic using Vision framework for body pose estimation |
+| `BallBouncingViewController.m` | Camera UI and detection interface for ball bouncing feature |
 | `main.m` | Standard iOS entry point calling UIApplicationMain |
-| `Info.plist` | Bundle identifier, version, supported orientations, launch storyboard |
+| `Info.plist` | Bundle identifier, version, supported orientations, camera permission |
 | `project.pbxproj` | Xcode project settings, build phases, and configurations |
 
 ## Architecture
@@ -62,15 +69,26 @@ The app uses a **Tab Bar + Navigation Controller** architecture:
 UIWindow
 └── UITabBarController (3 tabs)
     ├── Tab 1: UINavigationController → ViewController (navigation demos)
-    ├── Tab 2: UIViewController (plain)
+    ├── Tab 2: UINavigationController → BallBouncingViewController (ball bouncing detection)
     └── Tab 3: UIViewController (plain)
 ```
 
 ### Design Patterns Used
 
-- **Delegate Pattern:** AppDelegate implements UIApplicationDelegate
+- **Delegate Pattern:** AppDelegate implements UIApplicationDelegate, BallBouncingDetectorDelegate
 - **MVC Architecture:** UIViewController subclasses with view management
 - **Target-Action:** Button actions connected via selectors
+- **AVFoundation:** Camera capture and video processing pipeline
+
+### Ball Bouncing Detection
+
+The ball bouncing feature uses Apple's Vision framework to detect human body poses and track wrist movement:
+
+1. **Camera Capture:** AVCaptureSession captures video frames from the back camera
+2. **Pose Detection:** VNDetectHumanBodyPoseRequest analyzes frames to detect body joints
+3. **Wrist Tracking:** The detector tracks wrist Y position over time
+4. **Bounce Detection:** Identifies up-down movement patterns that match ball bouncing motion
+5. **UI Feedback:** Real-time count display with visual indicators for movement direction
 
 ## Development Workflows
 
@@ -106,9 +124,10 @@ xcodebuild -project demoForNavigation1.xcodeproj \
 ### Project Settings
 
 - **Bundle Identifier:** `YZX.demoForNavigation1`
-- **Deployment Target:** iOS 9.0
+- **Deployment Target:** iOS 14.0
 - **Device Family:** iPhone
 - **Supported Orientations:** Portrait, Landscape Left, Landscape Right
+- **Privacy:** Camera usage permission required for ball bouncing detection
 
 ## Code Conventions
 
@@ -187,7 +206,7 @@ viewController.tabBarItem = tabItem;
 2. **Maintain ARC compatibility** - Don't add manual retain/release calls
 3. **Follow existing naming conventions** - Use camelCase for methods, PascalCase for classes
 4. **Keep UI setup programmatic** - The main UI is built in code, not storyboards
-5. **Test on iOS 9.0+** - Ensure compatibility with deployment target
+5. **Test on iOS 14.0+** - Ensure compatibility with deployment target (Vision body pose requires iOS 14+)
 
 ### When Adding Features
 
@@ -220,10 +239,11 @@ viewController.tabBarItem = tabItem;
 
 ## Additional Notes
 
-- This is a lightweight demo project (~158 lines of source code)
-- No external dependencies or third-party frameworks
+- This project demonstrates both navigation patterns and computer vision capabilities
+- Uses only Apple native frameworks (no external dependencies)
 - No unit tests currently in place
-- Project was created with Xcode 7.2
+- Project was created with Xcode 7.2, updated for Vision framework support
+- Ball bouncing detection requires a real device with camera (simulator has limited support)
 
 ---
 
