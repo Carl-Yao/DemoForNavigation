@@ -11,6 +11,7 @@ This document provides guidance for AI assistants working with this iOS navigati
 - Programmatic UI setup (no storyboards for main UI)
 - **Ball Bouncing Detection** - Uses Vision framework to detect ball bouncing actions via body pose estimation
 - **Court Line Detection** - Uses Core Image and Vision framework to detect basketball court lines
+- **Shooting Detection** - Uses Vision framework to detect basketball shooting motions via arm pose analysis
 
 **Created:** February 2016 by 姚振兴 (Yao Zhenxing)
 
@@ -43,6 +44,10 @@ This document provides guidance for AI assistants working with this iOS navigati
 │   ├── CourtLineDetector.m                # Court line detection implementation
 │   ├── CourtLineViewController.h          # Court line view controller interface
 │   ├── CourtLineViewController.m          # Court line view controller implementation
+│   ├── ShootingDetector.h                 # Shooting detection interface
+│   ├── ShootingDetector.m                 # Shooting detection implementation
+│   ├── ShootingViewController.h           # Shooting view controller interface
+│   ├── ShootingViewController.m           # Shooting view controller implementation
 │   ├── main.m                             # Application entry point
 │   ├── Info.plist                         # App configuration and metadata
 │   ├── Assets.xcassets/                   # Image and asset catalog
@@ -58,12 +63,14 @@ This document provides guidance for AI assistants working with this iOS navigati
 
 | File | Purpose |
 |------|---------|
-| `AppDelegate.m` | Sets up the tab bar controller with 3 tabs and navigation controllers |
+| `AppDelegate.m` | Sets up the tab bar controller with 4 tabs and navigation controllers |
 | `ViewController.m` | Demonstrates navigation push/pop and navigation bar customization |
 | `BallBouncingDetector.m` | Core detection logic using Vision framework for body pose estimation |
 | `BallBouncingViewController.m` | Camera UI and detection interface for ball bouncing feature |
 | `CourtLineDetector.m` | Core detection logic using Core Image edge detection and Vision contours |
 | `CourtLineViewController.m` | Camera UI and detection interface for court line feature |
+| `ShootingDetector.m` | Core detection logic using Vision framework for shooting motion analysis |
+| `ShootingViewController.m` | Camera UI and detection interface for shooting detection feature |
 | `main.m` | Standard iOS entry point calling UIApplicationMain |
 | `Info.plist` | Bundle identifier, version, supported orientations, camera permission |
 | `project.pbxproj` | Xcode project settings, build phases, and configurations |
@@ -74,15 +81,16 @@ The app uses a **Tab Bar + Navigation Controller** architecture:
 
 ```
 UIWindow
-└── UITabBarController (3 tabs)
+└── UITabBarController (4 tabs)
     ├── Tab 1: UINavigationController → ViewController (navigation demos)
     ├── Tab 2: UINavigationController → BallBouncingViewController (ball bouncing detection)
-    └── Tab 3: UINavigationController → CourtLineViewController (court line detection)
+    ├── Tab 3: UINavigationController → CourtLineViewController (court line detection)
+    └── Tab 4: UINavigationController → ShootingViewController (shooting detection)
 ```
 
 ### Design Patterns Used
 
-- **Delegate Pattern:** AppDelegate implements UIApplicationDelegate, BallBouncingDetectorDelegate, CourtLineDetectorDelegate
+- **Delegate Pattern:** AppDelegate implements UIApplicationDelegate, BallBouncingDetectorDelegate, CourtLineDetectorDelegate, ShootingDetectorDelegate
 - **MVC Architecture:** UIViewController subclasses with view management
 - **Target-Action:** Button actions connected via selectors
 - **AVFoundation:** Camera capture and video processing pipeline
@@ -113,6 +121,27 @@ The court line detection feature uses Core Image filters and Vision framework to
 - `CIEdges` → Edge detection with adjustable intensity
 - `CIExposureAdjust` → Edge enhancement
 - `CIScreenBlendMode` → Optional overlay with original image
+
+### Shooting Detection
+
+The shooting detection feature uses Apple's Vision framework to detect basketball shooting motions:
+
+1. **Camera Capture:** AVCaptureSession captures video frames from the back camera
+2. **Pose Detection:** VNDetectHumanBodyPoseRequest analyzes frames to detect body joints
+3. **Arm Tracking:** Tracks wrist, elbow, and shoulder positions of the shooting arm
+4. **Phase Detection:** Uses a state machine to identify shooting phases:
+   - **Idle:** Waiting for shooting motion
+   - **Ready:** Arm in preparation position
+   - **Raising:** Ball being raised above head
+   - **Release:** Shot released (arm extension detected)
+   - **Follow Through:** Post-shot position
+5. **UI Feedback:** Real-time shot count with phase indicators and animations
+
+**Detection Algorithm:**
+- Monitors wrist position relative to shoulder height
+- Tracks peak wrist height during raising phase
+- Detects release when wrist starts descending after peak
+- Includes debounce (1 second minimum between shots)
 
 ## Development Workflows
 
@@ -267,8 +296,9 @@ viewController.tabBarItem = tabItem;
 - Uses only Apple native frameworks (no external dependencies)
 - No unit tests currently in place
 - Project was created with Xcode 7.2, updated for Vision and Core Image support
-- Ball bouncing and court line detection require a real device with camera (simulator has limited support)
+- Ball bouncing, court line, and shooting detection require a real device with camera (simulator has limited support)
 - Court line detection works best in well-lit environments with clear court markings
+- Shooting detection works best when the full upper body is visible in frame
 
 ---
 

@@ -10,6 +10,7 @@
 #import "ViewController.h"
 #import "BallBouncingViewController.h"
 #import "CourtLineViewController.h"
+#import "ShootingViewController.h"
 
 @interface AppDelegate ()
 
@@ -39,7 +40,11 @@
     nav3.tabBarItem.title = @"场地线";
     nav3.tabBarItem.image = nil;
     nav3.navigationBar.barTintColor = [UIColor colorWithRed:0.1 green:0.4 blue:0.8 alpha:1.0];
-    [tabController setViewControllers:@[nav1,nav2,nav3]];
+    UINavigationController * nav4 = [[UINavigationController alloc] initWithRootViewController:[[ShootingViewController alloc]init]];
+    nav4.tabBarItem.title = @"投篮";
+    nav4.tabBarItem.image = nil;
+    nav4.navigationBar.barTintColor = [UIColor colorWithRed:0.8 green:0.4 blue:0.0 alpha:1.0];
+    [tabController setViewControllers:@[nav1,nav2,nav3,nav4]];
     self.window.rootViewController = tabController;//[[UINavigationController alloc] init];
     //[[ViewController alloc] init];
     [self.window makeKeyAndVisible];

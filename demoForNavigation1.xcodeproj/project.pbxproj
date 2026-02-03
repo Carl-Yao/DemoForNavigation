@@ -16,6 +16,8 @@
 		BBVC0001B1C7320D400CBCB42 /* BallBouncingViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = BBVC0001M1C7320D400CBCB42 /* BallBouncingViewController.m */; };
 		CLDET001B1C7320D400CBCB42 /* CourtLineDetector.m in Sources */ = {isa = PBXBuildFile; fileRef = CLDET001M1C7320D400CBCB42 /* CourtLineDetector.m */; };
 		CLVC0001B1C7320D400CBCB42 /* CourtLineViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = CLVC0001M1C7320D400CBCB42 /* CourtLineViewController.m */; };
+		SHDET001B1C7320D400CBCB42 /* ShootingDetector.m in Sources */ = {isa = PBXBuildFile; fileRef = SHDET001M1C7320D400CBCB42 /* ShootingDetector.m */; };
+		SHVC0001B1C7320D400CBCB42 /* ShootingViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = SHVC0001M1C7320D400CBCB42 /* ShootingViewController.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -36,6 +38,10 @@
 		CLDET001M1C7320D400CBCB42 /* CourtLineDetector.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = CourtLineDetector.m; sourceTree = "<group>"; };
 		CLVC0001H1C7320D400CBCB42 /* CourtLineViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CourtLineViewController.h; sourceTree = "<group>"; };
 		CLVC0001M1C7320D400CBCB42 /* CourtLineViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = CourtLineViewController.m; sourceTree = "<group>"; };
+		SHDET001H1C7320D400CBCB42 /* ShootingDetector.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ShootingDetector.h; sourceTree = "<group>"; };
+		SHDET001M1C7320D400CBCB42 /* ShootingDetector.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ShootingDetector.m; sourceTree = "<group>"; };
+		SHVC0001H1C7320D400CBCB42 /* ShootingViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ShootingViewController.h; sourceTree = "<group>"; };
+		SHVC0001M1C7320D400CBCB42 /* ShootingViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ShootingViewController.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -80,6 +86,10 @@
 				CLDET001M1C7320D400CBCB42 /* CourtLineDetector.m */,
 				CLVC0001H1C7320D400CBCB42 /* CourtLineViewController.h */,
 				CLVC0001M1C7320D400CBCB42 /* CourtLineViewController.m */,
+				SHDET001H1C7320D400CBCB42 /* ShootingDetector.h */,
+				SHDET001M1C7320D400CBCB42 /* ShootingDetector.m */,
+				SHVC0001H1C7320D400CBCB42 /* ShootingViewController.h */,
+				SHVC0001M1C7320D400CBCB42 /* ShootingViewController.m */,
 				5D5E70F01C7320D400CBCB42 /* Assets.xcassets */,
 				5D5E70F21C7320D400CBCB42 /* LaunchScreen.storyboard */,
 				5D5E70F51C7320D400CBCB42 /* Info.plist */,
@@ -172,6 +182,8 @@
 				BBVC0001B1C7320D400CBCB42 /* BallBouncingViewController.m in Sources */,
 				CLDET001B1C7320D400CBCB42 /* CourtLineDetector.m in Sources */,
 				CLVC0001B1C7320D400CBCB42 /* CourtLineViewController.m in Sources */,
+				SHDET001B1C7320D400CBCB42 /* ShootingDetector.m in Sources */,
+				SHVC0001B1C7320D400CBCB42 /* ShootingViewController.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
