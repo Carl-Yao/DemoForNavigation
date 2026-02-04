@@ -2,8 +2,8 @@
 //  CourtLineDetector.m
 //  demoForNavigation1
 //
-//  Basketball court line detection using Core Image edge detection
-//  Uses Sobel-based edge detection to find court lines
+//  Basketball court line detection using Core Image
+//  Detects white/bright lines typical of basketball courts
 //
 
 #import "CourtLineDetector.h"
@@ -24,7 +24,7 @@
         _isDetecting = NO;
         _frameCount = 0;
         _edgeIntensity = 1.0;
-        _threshold = 0.1;
+        _threshold = 0.7;  // Brightness threshold for white line detection
         _showColorEdges = NO;
 
         // Create CIContext for GPU-accelerated processing
@@ -47,16 +47,16 @@
         return;
     }
 
-    // Process every 2nd frame for better performance while maintaining smoothness
+    // Process every 2nd frame for performance
     self.frameCount++;
     if (self.frameCount % 2 != 0) {
         return;
     }
 
-    [self detectEdgesInPixelBuffer:pixelBuffer];
+    [self detectCourtLinesInPixelBuffer:pixelBuffer];
 }
 
-- (void)detectEdgesInPixelBuffer:(CVPixelBufferRef)pixelBuffer {
+- (void)detectCourtLinesInPixelBuffer:(CVPixelBufferRef)pixelBuffer {
     // Create CIImage from pixel buffer
     CIImage *inputImage = [CIImage imageWithCVPixelBuffer:pixelBuffer];
 
@@ -69,18 +69,48 @@
         return;
     }
 
-    // Step 1: Convert to grayscale and enhance contrast
+    // Fix rotation: Camera outputs landscape, we need portrait
+    inputImage = [inputImage imageByApplyingCGOrientation:kCGImagePropertyOrientationRight];
+
+    CGRect extent = inputImage.extent;
+
+    // Step 1: Enhance contrast to make white lines stand out
     CIFilter *colorControls = [CIFilter filterWithName:@"CIColorControls"];
     [colorControls setValue:inputImage forKey:kCIInputImageKey];
-    [colorControls setValue:@(0.0) forKey:kCIInputSaturationKey];  // Grayscale
-    [colorControls setValue:@(1.2) forKey:kCIInputContrastKey];    // Increase contrast
+    [colorControls setValue:@(1.8) forKey:kCIInputContrastKey];
     [colorControls setValue:@(0.0) forKey:kCIInputBrightnessKey];
-    CIImage *grayscaleImage = colorControls.outputImage;
+    [colorControls setValue:@(0.0) forKey:kCIInputSaturationKey];  // Grayscale
+    CIImage *contrastImage = colorControls.outputImage;
 
-    // Step 2: Apply edge detection using CIEdges
+    // Step 2: Threshold to isolate bright/white areas (court lines)
+    // Using color matrix to create threshold effect
+    // Pixels brighter than threshold become white, others become black
+    CIFilter *thresholdFilter = [CIFilter filterWithName:@"CIColorMatrix"];
+    [thresholdFilter setValue:contrastImage forKey:kCIInputImageKey];
+
+    // High contrast to create threshold effect
+    CGFloat scale = 10.0;  // High multiplier
+    CGFloat bias = -self.threshold * scale;  // Offset based on threshold
+
+    [thresholdFilter setValue:[CIVector vectorWithX:scale Y:0 Z:0 W:0] forKey:@"inputRVector"];
+    [thresholdFilter setValue:[CIVector vectorWithX:0 Y:scale Z:0 W:0] forKey:@"inputGVector"];
+    [thresholdFilter setValue:[CIVector vectorWithX:0 Y:0 Z:scale W:0] forKey:@"inputBVector"];
+    [thresholdFilter setValue:[CIVector vectorWithX:0 Y:0 Z:0 W:1] forKey:@"inputAVector"];
+    [thresholdFilter setValue:[CIVector vectorWithX:bias Y:bias Z:bias W:0] forKey:@"inputBiasVector"];
+
+    CIImage *thresholdedImage = thresholdFilter.outputImage;
+
+    // Clamp values to 0-1 range
+    CIFilter *clampFilter = [CIFilter filterWithName:@"CIColorClamp"];
+    [clampFilter setValue:thresholdedImage forKey:kCIInputImageKey];
+    [clampFilter setValue:[CIVector vectorWithX:0 Y:0 Z:0 W:0] forKey:@"inputMinComponents"];
+    [clampFilter setValue:[CIVector vectorWithX:1 Y:1 Z:1 W:1] forKey:@"inputMaxComponents"];
+    CIImage *clampedImage = clampFilter.outputImage;
+
+    // Step 3: Apply edge detection to find line boundaries
     CIFilter *edgesFilter = [CIFilter filterWithName:@"CIEdges"];
-    [edgesFilter setValue:grayscaleImage forKey:kCIInputImageKey];
-    [edgesFilter setValue:@(self.edgeIntensity) forKey:kCIInputIntensityKey];
+    [edgesFilter setValue:clampedImage forKey:kCIInputImageKey];
+    [edgesFilter setValue:@(self.edgeIntensity * 3.0) forKey:kCIInputIntensityKey];
     CIImage *edgesImage = edgesFilter.outputImage;
 
     if (!edgesImage) {
@@ -92,37 +122,35 @@
         return;
     }
 
-    // Step 3: Enhance the edges
+    // Step 4: Enhance edge visibility
     CIFilter *exposureFilter = [CIFilter filterWithName:@"CIExposureAdjust"];
     [exposureFilter setValue:edgesImage forKey:kCIInputImageKey];
-    [exposureFilter setValue:@(1.5) forKey:kCIInputEVKey];  // Brighten edges
+    [exposureFilter setValue:@(2.0) forKey:kCIInputEVKey];
     CIImage *enhancedEdges = exposureFilter.outputImage;
 
-    // Step 4: Apply threshold to get cleaner lines
-    // Using CIColorMatrix to threshold
-    CIFilter *thresholdFilter = [CIFilter filterWithName:@"CIColorMatrix"];
-    [thresholdFilter setValue:enhancedEdges forKey:kCIInputImageKey];
+    // Step 5: Colorize the detected lines (make them cyan for visibility)
+    CIFilter *colorMatrix = [CIFilter filterWithName:@"CIColorMatrix"];
+    [colorMatrix setValue:enhancedEdges forKey:kCIInputImageKey];
+    // Convert white edges to cyan color
+    [colorMatrix setValue:[CIVector vectorWithX:0 Y:0 Z:0 W:0] forKey:@"inputRVector"];
+    [colorMatrix setValue:[CIVector vectorWithX:0 Y:1 Z:0 W:0] forKey:@"inputGVector"];
+    [colorMatrix setValue:[CIVector vectorWithX:0 Y:0 Z:1 W:0] forKey:@"inputBVector"];
+    [colorMatrix setValue:[CIVector vectorWithX:0 Y:0 Z:0 W:1] forKey:@"inputAVector"];
+    [colorMatrix setValue:[CIVector vectorWithX:0 Y:0 Z:0 W:0] forKey:@"inputBiasVector"];
+    CIImage *coloredEdges = colorMatrix.outputImage;
 
-    // Make edges more visible by boosting contrast
-    CGFloat boost = 2.0;
-    [thresholdFilter setValue:[CIVector vectorWithX:boost Y:0 Z:0 W:0] forKey:@"inputRVector"];
-    [thresholdFilter setValue:[CIVector vectorWithX:0 Y:boost Z:0 W:0] forKey:@"inputGVector"];
-    [thresholdFilter setValue:[CIVector vectorWithX:0 Y:0 Z:boost W:0] forKey:@"inputBVector"];
-    [thresholdFilter setValue:[CIVector vectorWithX:0 Y:0 Z:0 W:1] forKey:@"inputAVector"];
-    [thresholdFilter setValue:[CIVector vectorWithX:0 Y:0 Z:0 W:0] forKey:@"inputBiasVector"];
+    CIImage *finalImage = coloredEdges;
 
-    CIImage *finalImage = thresholdFilter.outputImage;
-
-    // If showing color edges, blend with original
+    // If showing with original, blend
     if (self.showColorEdges) {
-        CIFilter *blendFilter = [CIFilter filterWithName:@"CIAdditionCompositing"];
-        [blendFilter setValue:finalImage forKey:kCIInputImageKey];
+        CIFilter *blendFilter = [CIFilter filterWithName:@"CISourceOverCompositing"];
+        [blendFilter setValue:coloredEdges forKey:kCIInputImageKey];
         [blendFilter setValue:inputImage forKey:kCIInputBackgroundImageKey];
         finalImage = blendFilter.outputImage;
     }
 
     // Render to UIImage
-    CGImageRef cgImage = [self.ciContext createCGImage:finalImage fromRect:inputImage.extent];
+    CGImageRef cgImage = [self.ciContext createCGImage:finalImage fromRect:extent];
 
     if (!cgImage) {
         dispatch_async(dispatch_get_main_queue(), ^{

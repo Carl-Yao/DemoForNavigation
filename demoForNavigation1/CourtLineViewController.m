@@ -65,7 +65,8 @@
     self.detector = [[CourtLineDetector alloc] init];
     self.detector.delegate = self;
     self.detector.edgeIntensity = 1.0;
-    self.detector.showColorEdges = NO;
+    self.detector.threshold = 0.6;  // Brightness threshold for white lines
+    self.detector.showColorEdges = YES;  // Show lines on original image by default
 }
 
 - (void)setupUI {
@@ -93,19 +94,19 @@
     self.statusLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:self.statusLabel];
 
-    // Intensity slider label
+    // Intensity slider label (now for threshold)
     self.intensityLabel = [[UILabel alloc] init];
-    self.intensityLabel.text = @"边缘强度: 1.0";
+    self.intensityLabel.text = @"白线阈值: 0.6";
     self.intensityLabel.textColor = [UIColor lightGrayColor];
     self.intensityLabel.font = [UIFont systemFontOfSize:14];
     self.intensityLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:self.intensityLabel];
 
-    // Intensity slider
+    // Intensity slider (controls brightness threshold for white line detection)
     self.intensitySlider = [[UISlider alloc] init];
-    self.intensitySlider.minimumValue = 0.1;
-    self.intensitySlider.maximumValue = 5.0;
-    self.intensitySlider.value = 1.0;
+    self.intensitySlider.minimumValue = 0.3;
+    self.intensitySlider.maximumValue = 0.9;
+    self.intensitySlider.value = 0.6;
     self.intensitySlider.tintColor = [UIColor cyanColor];
     self.intensitySlider.translatesAutoresizingMaskIntoConstraints = NO;
     [self.intensitySlider addTarget:self action:@selector(intensityChanged:) forControlEvents:UIControlEventValueChanged];
@@ -121,7 +122,7 @@
 
     // Color switch
     self.colorSwitch = [[UISwitch alloc] init];
-    self.colorSwitch.on = NO;
+    self.colorSwitch.on = YES;  // Show lines on original image by default
     self.colorSwitch.onTintColor = [UIColor cyanColor];
     self.colorSwitch.translatesAutoresizingMaskIntoConstraints = NO;
     [self.colorSwitch addTarget:self action:@selector(colorSwitchChanged:) forControlEvents:UIControlEventValueChanged];
@@ -306,8 +307,8 @@
 }
 
 - (void)intensityChanged:(UISlider *)slider {
-    self.detector.edgeIntensity = slider.value;
-    self.intensityLabel.text = [NSString stringWithFormat:@"边缘强度: %.1f", slider.value];
+    self.detector.threshold = slider.value;
+    self.intensityLabel.text = [NSString stringWithFormat:@"白线阈值: %.1f", slider.value];
 }
 
 - (void)colorSwitchChanged:(UISwitch *)colorSwitch {
