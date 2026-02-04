@@ -72,10 +72,11 @@
 - (void)setupDetector {
     self.detector = [[CourtLineDetector alloc] init];
     self.detector.delegate = self;
-    self.detector.contrastAdjustment = 1.5;
-    self.detector.detectDarkOnLight = NO;  // Light lines on dark court
-    self.detector.minLineLength = 0.08;
-    self.detector.straightnessThreshold = 0.85;
+    // Use more lenient default values for better detection
+    self.detector.contrastAdjustment = 2.0;
+    self.detector.detectDarkOnLight = YES;  // Try dark on light first
+    self.detector.minLineLength = 0.05;     // Lower threshold
+    self.detector.straightnessThreshold = 0.75;  // More lenient
 }
 
 - (void)setupUI {
@@ -119,7 +120,7 @@
 
     // Contrast slider label
     self.contrastLabel = [[UILabel alloc] init];
-    self.contrastLabel.text = @"对比度: 1.5";
+    self.contrastLabel.text = @"对比度: 2.0";
     self.contrastLabel.textColor = [UIColor lightGrayColor];
     self.contrastLabel.font = [UIFont systemFontOfSize:14];
     self.contrastLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -129,7 +130,7 @@
     self.contrastSlider = [[UISlider alloc] init];
     self.contrastSlider.minimumValue = 0.5;
     self.contrastSlider.maximumValue = 3.0;
-    self.contrastSlider.value = 1.5;
+    self.contrastSlider.value = 2.0;  // Higher default contrast
     self.contrastSlider.tintColor = [UIColor cyanColor];
     self.contrastSlider.translatesAutoresizingMaskIntoConstraints = NO;
     [self.contrastSlider addTarget:self action:@selector(contrastChanged:) forControlEvents:UIControlEventValueChanged];
@@ -137,17 +138,17 @@
 
     // Sensitivity slider label
     self.sensitivityLabel = [[UILabel alloc] init];
-    self.sensitivityLabel.text = @"灵敏度: 85%";
+    self.sensitivityLabel.text = @"灵敏度: 75%";
     self.sensitivityLabel.textColor = [UIColor lightGrayColor];
     self.sensitivityLabel.font = [UIFont systemFontOfSize:14];
     self.sensitivityLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:self.sensitivityLabel];
 
-    // Sensitivity slider (controls straightness threshold)
+    // Sensitivity slider (controls straightness threshold - lower = more lines detected)
     self.sensitivitySlider = [[UISlider alloc] init];
-    self.sensitivitySlider.minimumValue = 0.7;
+    self.sensitivitySlider.minimumValue = 0.5;   // More lenient minimum
     self.sensitivitySlider.maximumValue = 0.95;
-    self.sensitivitySlider.value = 0.85;
+    self.sensitivitySlider.value = 0.75;  // Lower default for more detections
     self.sensitivitySlider.tintColor = [UIColor yellowColor];
     self.sensitivitySlider.translatesAutoresizingMaskIntoConstraints = NO;
     [self.sensitivitySlider addTarget:self action:@selector(sensitivityChanged:) forControlEvents:UIControlEventValueChanged];

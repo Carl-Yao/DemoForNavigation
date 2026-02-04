@@ -26,11 +26,11 @@
     if (self) {
         _isDetecting = NO;
         _frameCount = 0;
-        _contrastAdjustment = 1.5;
-        _detectDarkOnLight = NO;  // Basketball courts typically have light lines on dark floor
-        _minLineLength = 0.08;    // Minimum 8% of image dimension
-        _angleThreshold = 20.0;   // 20 degrees tolerance for horizontal/vertical
-        _straightnessThreshold = 0.90;  // 90% straightness required
+        _contrastAdjustment = 2.0;
+        _detectDarkOnLight = YES;  // Detect dark lines on light background (try both)
+        _minLineLength = 0.05;    // Minimum 5% of image dimension (more lenient)
+        _angleThreshold = 35.0;   // 35 degrees tolerance for horizontal/vertical (more lenient)
+        _straightnessThreshold = 0.75;  // 75% straightness required (more lenient)
         _lastImageSize = CGSizeZero;
     }
     return self;
@@ -180,11 +180,11 @@
     line.endPoint = endPoint;
 
     // Classify the line based on straightness
+    CGFloat angle = [self angleOfLineFrom:startPoint to:endPoint];
+    line.angle = angle;
+
     if (straightness >= self.straightnessThreshold) {
         // This is a straight line - classify by angle
-        CGFloat angle = [self angleOfLineFrom:startPoint to:endPoint];
-        line.angle = angle;
-
         // Check if horizontal (0° or 180° ± threshold)
         if ([self isAngleHorizontal:angle]) {
             line.lineType = CourtLineTypeHorizontal;
@@ -194,26 +194,19 @@
             line.lineType = CourtLineTypeVertical;
         }
         else {
-            // Diagonal lines are rare in basketball courts - filter out
-            line.lineType = CourtLineTypeUnknown;
-            return nil;
+            // Diagonal lines - still show as horizontal for visibility
+            // (camera angle can make court lines appear diagonal)
+            line.lineType = CourtLineTypeHorizontal;
         }
     }
-    else if (straightness >= 0.5 && straightness < self.straightnessThreshold) {
+    else if (straightness >= 0.3) {
         // This might be an arc (curved but not too random)
-        // Check if it has consistent curvature
-        if ([self hasConsistentCurvature:points]) {
-            line.lineType = CourtLineTypeArc;
-            line.angle = 0;
-        } else {
-            line.lineType = CourtLineTypeUnknown;
-            return nil;
-        }
+        // More lenient threshold for arcs
+        line.lineType = CourtLineTypeArc;
     }
     else {
-        // Too irregular - not a court line
-        line.lineType = CourtLineTypeUnknown;
-        return nil;
+        // Too irregular - but still might be a partial line, show as arc
+        line.lineType = CourtLineTypeArc;
     }
 
     // Create the path
