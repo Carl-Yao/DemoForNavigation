@@ -8,26 +8,29 @@
 #import "CourtLineViewController.h"
 #import "CourtLineDetector.h"
 #import <AVFoundation/AVFoundation.h>
-#import <CoreImage/CoreImage.h>
 
 @interface CourtLineViewController () <AVCaptureVideoDataOutputSampleBufferDelegate, CourtLineDetectorDelegate>
 
 // Camera
 @property (nonatomic, strong) AVCaptureSession *captureSession;
+@property (nonatomic, strong) AVCaptureVideoPreviewLayer *previewLayer;
 @property (nonatomic, strong) dispatch_queue_t videoQueue;
 
 // Detector
 @property (nonatomic, strong) CourtLineDetector *detector;
 
+// Line drawing layer
+@property (nonatomic, strong) CAShapeLayer *lineOverlayLayer;
+
 // UI Elements
-@property (nonatomic, strong) UIImageView *previewImageView;
+@property (nonatomic, strong) UIView *cameraContainerView;
 @property (nonatomic, strong) UILabel *statusLabel;
 @property (nonatomic, strong) UILabel *lineCountLabel;
 @property (nonatomic, strong) UIButton *startButton;
-@property (nonatomic, strong) UISlider *intensitySlider;
-@property (nonatomic, strong) UILabel *intensityLabel;
-@property (nonatomic, strong) UISwitch *overlaySwitch;
-@property (nonatomic, strong) UILabel *overlayLabel;
+@property (nonatomic, strong) UISlider *contrastSlider;
+@property (nonatomic, strong) UILabel *contrastLabel;
+@property (nonatomic, strong) UISegmentedControl *modeSegment;
+@property (nonatomic, strong) UILabel *modeLabel;
 
 @property (nonatomic, assign) BOOL isRunning;
 
@@ -44,6 +47,7 @@
 
     [self setupDetector];
     [self setupUI];
+    [self setupLineOverlayLayer];
     [self checkCameraPermission];
 }
 
@@ -61,17 +65,18 @@
 - (void)setupDetector {
     self.detector = [[CourtLineDetector alloc] init];
     self.detector.delegate = self;
-    self.detector.edgeIntensity = 0.7;
-    self.detector.showOriginalOverlay = YES;
+    self.detector.contrastAdjustment = 2.0;
+    self.detector.detectDarkOnLight = YES;
 }
 
 - (void)setupUI {
-    // Preview image view for showing processed frames
-    self.previewImageView = [[UIImageView alloc] init];
-    self.previewImageView.contentMode = UIViewContentModeScaleAspectFit;
-    self.previewImageView.backgroundColor = [UIColor darkGrayColor];
-    self.previewImageView.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.view addSubview:self.previewImageView];
+    // Camera container view
+    self.cameraContainerView = [[UIView alloc] init];
+    self.cameraContainerView.backgroundColor = [UIColor darkGrayColor];
+    self.cameraContainerView.translatesAutoresizingMaskIntoConstraints = NO;
+    self.cameraContainerView.clipsToBounds = YES;
+    self.cameraContainerView.layer.cornerRadius = 8;
+    [self.view addSubview:self.cameraContainerView];
 
     // Status label
     self.statusLabel = [[UILabel alloc] init];
@@ -84,52 +89,51 @@
 
     // Line count label
     self.lineCountLabel = [[UILabel alloc] init];
-    self.lineCountLabel.text = @"检测到线条: 0";
+    self.lineCountLabel.text = @"检测到轮廓: 0";
     self.lineCountLabel.textColor = [UIColor greenColor];
     self.lineCountLabel.textAlignment = NSTextAlignmentCenter;
-    self.lineCountLabel.font = [UIFont boldSystemFontOfSize:20];
+    self.lineCountLabel.font = [UIFont boldSystemFontOfSize:22];
     self.lineCountLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:self.lineCountLabel];
 
-    // Intensity slider label
-    self.intensityLabel = [[UILabel alloc] init];
-    self.intensityLabel.text = @"边缘强度: 70%";
-    self.intensityLabel.textColor = [UIColor lightGrayColor];
-    self.intensityLabel.font = [UIFont systemFontOfSize:14];
-    self.intensityLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.view addSubview:self.intensityLabel];
+    // Contrast slider label
+    self.contrastLabel = [[UILabel alloc] init];
+    self.contrastLabel.text = @"对比度: 2.0";
+    self.contrastLabel.textColor = [UIColor lightGrayColor];
+    self.contrastLabel.font = [UIFont systemFontOfSize:14];
+    self.contrastLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.contrastLabel];
 
-    // Intensity slider
-    self.intensitySlider = [[UISlider alloc] init];
-    self.intensitySlider.minimumValue = 0.1;
-    self.intensitySlider.maximumValue = 1.0;
-    self.intensitySlider.value = 0.7;
-    self.intensitySlider.tintColor = [UIColor greenColor];
-    self.intensitySlider.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.intensitySlider addTarget:self action:@selector(intensityChanged:) forControlEvents:UIControlEventValueChanged];
-    [self.view addSubview:self.intensitySlider];
+    // Contrast slider
+    self.contrastSlider = [[UISlider alloc] init];
+    self.contrastSlider.minimumValue = 0.5;
+    self.contrastSlider.maximumValue = 3.0;
+    self.contrastSlider.value = 2.0;
+    self.contrastSlider.tintColor = [UIColor cyanColor];
+    self.contrastSlider.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.contrastSlider addTarget:self action:@selector(contrastChanged:) forControlEvents:UIControlEventValueChanged];
+    [self.view addSubview:self.contrastSlider];
 
-    // Overlay switch label
-    self.overlayLabel = [[UILabel alloc] init];
-    self.overlayLabel.text = @"显示原图叠加";
-    self.overlayLabel.textColor = [UIColor lightGrayColor];
-    self.overlayLabel.font = [UIFont systemFontOfSize:14];
-    self.overlayLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.view addSubview:self.overlayLabel];
+    // Mode label
+    self.modeLabel = [[UILabel alloc] init];
+    self.modeLabel.text = @"检测模式:";
+    self.modeLabel.textColor = [UIColor lightGrayColor];
+    self.modeLabel.font = [UIFont systemFontOfSize:14];
+    self.modeLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.modeLabel];
 
-    // Overlay switch
-    self.overlaySwitch = [[UISwitch alloc] init];
-    self.overlaySwitch.on = YES;
-    self.overlaySwitch.onTintColor = [UIColor greenColor];
-    self.overlaySwitch.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.overlaySwitch addTarget:self action:@selector(overlayToggled:) forControlEvents:UIControlEventValueChanged];
-    [self.view addSubview:self.overlaySwitch];
+    // Mode segment control
+    self.modeSegment = [[UISegmentedControl alloc] initWithItems:@[@"深线/浅底", @"浅线/深底"]];
+    self.modeSegment.selectedSegmentIndex = 0;
+    self.modeSegment.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.modeSegment addTarget:self action:@selector(modeChanged:) forControlEvents:UIControlEventValueChanged];
+    [self.view addSubview:self.modeSegment];
 
     // Start/Stop button
     self.startButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [self.startButton setTitle:@"开始检测" forState:UIControlStateNormal];
     [self.startButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    self.startButton.backgroundColor = [UIColor colorWithRed:0.0 green:0.5 blue:0.8 alpha:1.0];
+    self.startButton.backgroundColor = [UIColor colorWithRed:0.0 green:0.6 blue:0.9 alpha:1.0];
     self.startButton.layer.cornerRadius = 25;
     self.startButton.titleLabel.font = [UIFont boldSystemFontOfSize:18];
     self.startButton.translatesAutoresizingMaskIntoConstraints = NO;
@@ -138,36 +142,37 @@
 
     // Layout constraints
     [NSLayoutConstraint activateConstraints:@[
-        // Preview image view
-        [self.previewImageView.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:10],
-        [self.previewImageView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:10],
-        [self.previewImageView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-10],
-        [self.previewImageView.heightAnchor constraintEqualToAnchor:self.previewImageView.widthAnchor multiplier:0.75],
+        // Camera container
+        [self.cameraContainerView.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:10],
+        [self.cameraContainerView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:10],
+        [self.cameraContainerView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-10],
+        [self.cameraContainerView.heightAnchor constraintEqualToAnchor:self.cameraContainerView.widthAnchor multiplier:0.75],
 
         // Status label
-        [self.statusLabel.topAnchor constraintEqualToAnchor:self.previewImageView.bottomAnchor constant:15],
+        [self.statusLabel.topAnchor constraintEqualToAnchor:self.cameraContainerView.bottomAnchor constant:15],
         [self.statusLabel.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
 
         // Line count label
-        [self.lineCountLabel.topAnchor constraintEqualToAnchor:self.statusLabel.bottomAnchor constant:10],
+        [self.lineCountLabel.topAnchor constraintEqualToAnchor:self.statusLabel.bottomAnchor constant:8],
         [self.lineCountLabel.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
 
-        // Intensity label
-        [self.intensityLabel.topAnchor constraintEqualToAnchor:self.lineCountLabel.bottomAnchor constant:20],
-        [self.intensityLabel.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:20],
+        // Contrast label
+        [self.contrastLabel.topAnchor constraintEqualToAnchor:self.lineCountLabel.bottomAnchor constant:20],
+        [self.contrastLabel.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:20],
 
-        // Intensity slider
-        [self.intensitySlider.centerYAnchor constraintEqualToAnchor:self.intensityLabel.centerYAnchor],
-        [self.intensitySlider.leadingAnchor constraintEqualToAnchor:self.intensityLabel.trailingAnchor constant:10],
-        [self.intensitySlider.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20],
+        // Contrast slider
+        [self.contrastSlider.centerYAnchor constraintEqualToAnchor:self.contrastLabel.centerYAnchor],
+        [self.contrastSlider.leadingAnchor constraintEqualToAnchor:self.contrastLabel.trailingAnchor constant:10],
+        [self.contrastSlider.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20],
 
-        // Overlay label
-        [self.overlayLabel.topAnchor constraintEqualToAnchor:self.intensityLabel.bottomAnchor constant:15],
-        [self.overlayLabel.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:20],
+        // Mode label
+        [self.modeLabel.topAnchor constraintEqualToAnchor:self.contrastLabel.bottomAnchor constant:15],
+        [self.modeLabel.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:20],
 
-        // Overlay switch
-        [self.overlaySwitch.centerYAnchor constraintEqualToAnchor:self.overlayLabel.centerYAnchor],
-        [self.overlaySwitch.leadingAnchor constraintEqualToAnchor:self.overlayLabel.trailingAnchor constant:10],
+        // Mode segment
+        [self.modeSegment.centerYAnchor constraintEqualToAnchor:self.modeLabel.centerYAnchor],
+        [self.modeSegment.leadingAnchor constraintEqualToAnchor:self.modeLabel.trailingAnchor constant:10],
+        [self.modeSegment.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20],
 
         // Start button
         [self.startButton.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor constant:-30],
@@ -175,6 +180,15 @@
         [self.startButton.widthAnchor constraintEqualToConstant:200],
         [self.startButton.heightAnchor constraintEqualToConstant:50],
     ]];
+}
+
+- (void)setupLineOverlayLayer {
+    self.lineOverlayLayer = [CAShapeLayer layer];
+    self.lineOverlayLayer.strokeColor = [UIColor cyanColor].CGColor;
+    self.lineOverlayLayer.fillColor = [UIColor clearColor].CGColor;
+    self.lineOverlayLayer.lineWidth = 2.0;
+    self.lineOverlayLayer.lineCap = kCALineCapRound;
+    self.lineOverlayLayer.lineJoin = kCALineJoinRound;
 }
 
 #pragma mark - Camera Setup
@@ -251,6 +265,14 @@
         [self.captureSession addOutput:videoOutput];
     }
 
+    // Preview layer
+    self.previewLayer = [AVCaptureVideoPreviewLayer layerWithSession:self.captureSession];
+    self.previewLayer.videoGravity = AVLayerVideoGravityResizeAspectFill;
+    [self.cameraContainerView.layer addSublayer:self.previewLayer];
+
+    // Add line overlay layer on top of preview
+    [self.cameraContainerView.layer addSublayer:self.lineOverlayLayer];
+
     // Start session on background thread
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         [self.captureSession startRunning];
@@ -266,6 +288,12 @@
     [self.detector stopDetection];
 }
 
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    self.previewLayer.frame = self.cameraContainerView.bounds;
+    self.lineOverlayLayer.frame = self.cameraContainerView.bounds;
+}
+
 #pragma mark - Actions
 
 - (void)toggleDetection {
@@ -273,24 +301,25 @@
         [self.detector stopDetection];
         self.isRunning = NO;
         [self.startButton setTitle:@"开始检测" forState:UIControlStateNormal];
-        self.startButton.backgroundColor = [UIColor colorWithRed:0.0 green:0.5 blue:0.8 alpha:1.0];
+        self.startButton.backgroundColor = [UIColor colorWithRed:0.0 green:0.6 blue:0.9 alpha:1.0];
         self.statusLabel.text = @"已暂停";
+        self.lineOverlayLayer.path = nil;
     } else {
         [self.detector startDetection];
         self.isRunning = YES;
         [self.startButton setTitle:@"停止检测" forState:UIControlStateNormal];
-        self.startButton.backgroundColor = [UIColor colorWithRed:0.8 green:0.2 blue:0.2 alpha:1.0];
+        self.startButton.backgroundColor = [UIColor colorWithRed:0.9 green:0.2 blue:0.2 alpha:1.0];
         self.statusLabel.text = @"检测中...";
     }
 }
 
-- (void)intensityChanged:(UISlider *)slider {
-    self.detector.edgeIntensity = slider.value;
-    self.intensityLabel.text = [NSString stringWithFormat:@"边缘强度: %.0f%%", slider.value * 100];
+- (void)contrastChanged:(UISlider *)slider {
+    self.detector.contrastAdjustment = slider.value;
+    self.contrastLabel.text = [NSString stringWithFormat:@"对比度: %.1f", slider.value];
 }
 
-- (void)overlayToggled:(UISwitch *)overlaySwitch {
-    self.detector.showOriginalOverlay = overlaySwitch.on;
+- (void)modeChanged:(UISegmentedControl *)segment {
+    self.detector.detectDarkOnLight = (segment.selectedSegmentIndex == 0);
 }
 
 #pragma mark - AVCaptureVideoDataOutputSampleBufferDelegate
@@ -305,34 +334,85 @@
 
 #pragma mark - CourtLineDetectorDelegate
 
-- (void)courtLinesDetectedWithImage:(CIImage *)processedImage lineCount:(NSInteger)lineCount {
-    // Render CIImage to UIImage for display
-    CGImageRef cgImage = [self.detector.ciContext createCGImage:processedImage fromRect:processedImage.extent];
-    if (cgImage) {
-        UIImage *displayImage = [UIImage imageWithCGImage:cgImage scale:1.0 orientation:UIImageOrientationRight];
-        CGImageRelease(cgImage);
-
-        self.previewImageView.image = displayImage;
-    }
-
-    self.lineCountLabel.text = [NSString stringWithFormat:@"检测到线条: %ld", (long)lineCount];
+- (void)courtLinesDetectedWithContours:(NSArray<UIBezierPath *> *)contourPaths
+                             lineCount:(NSInteger)lineCount
+                             imageSize:(CGSize)imageSize {
+    // Update UI
+    self.lineCountLabel.text = [NSString stringWithFormat:@"检测到轮廓: %ld", (long)lineCount];
 
     // Update color based on line count
-    if (lineCount > 10) {
+    if (lineCount > 5) {
         self.lineCountLabel.textColor = [UIColor greenColor];
         self.statusLabel.text = @"检测到场地线";
+        self.lineOverlayLayer.strokeColor = [UIColor cyanColor].CGColor;
     } else if (lineCount > 0) {
         self.lineCountLabel.textColor = [UIColor yellowColor];
         self.statusLabel.text = @"检测中...";
+        self.lineOverlayLayer.strokeColor = [UIColor yellowColor].CGColor;
     } else {
         self.lineCountLabel.textColor = [UIColor redColor];
         self.statusLabel.text = @"未检测到明显线条";
+        self.lineOverlayLayer.path = nil;
+        return;
     }
+
+    // Draw contours on the overlay layer
+    [self drawContours:contourPaths imageSize:imageSize];
+}
+
+- (void)drawContours:(NSArray<UIBezierPath *> *)contourPaths imageSize:(CGSize)imageSize {
+    CGRect layerBounds = self.lineOverlayLayer.bounds;
+
+    if (CGRectIsEmpty(layerBounds) || imageSize.width == 0 || imageSize.height == 0) {
+        return;
+    }
+
+    UIBezierPath *combinedPath = [UIBezierPath bezierPath];
+
+    // Vision normalized coordinates: (0,0) is bottom-left, (1,1) is top-right
+    // We need to transform to layer coordinates
+    // Also account for video orientation (landscape input displayed in portrait view)
+
+    CGFloat viewWidth = layerBounds.size.width;
+    CGFloat viewHeight = layerBounds.size.height;
+
+    for (UIBezierPath *normalizedPath in contourPaths) {
+        // Create a transform to scale from normalized coordinates to view coordinates
+        // Vision coordinates have Y flipped (0 at bottom)
+        CGAffineTransform transform = CGAffineTransformIdentity;
+
+        // For landscape video in portrait view, we need to rotate and scale
+        // Normalized coords (0-1) need to map to view coords
+        // Since camera is landscape, width maps to height and vice versa
+
+        // Scale to view size (swap width/height for rotation)
+        transform = CGAffineTransformScale(transform, viewHeight, viewWidth);
+
+        // Rotate 90 degrees clockwise and translate
+        transform = CGAffineTransformRotate(transform, M_PI_2);
+        transform = CGAffineTransformTranslate(transform, 0, -1);
+
+        UIBezierPath *transformedPath = [normalizedPath copy];
+        [transformedPath applyTransform:transform];
+
+        [combinedPath appendPath:transformedPath];
+    }
+
+    // Animate the path update for smoother visualization
+    CABasicAnimation *animation = [CABasicAnimation animationWithKeyPath:@"path"];
+    animation.fromValue = (__bridge id)self.lineOverlayLayer.path;
+    animation.toValue = (__bridge id)combinedPath.CGPath;
+    animation.duration = 0.1;
+    animation.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
+
+    self.lineOverlayLayer.path = combinedPath.CGPath;
+    [self.lineOverlayLayer addAnimation:animation forKey:@"pathAnimation"];
 }
 
 - (void)courtLineDetectionFailed:(NSString *)reason {
     self.statusLabel.text = reason;
     self.lineCountLabel.textColor = [UIColor redColor];
+    self.lineOverlayLayer.path = nil;
 }
 
 @end

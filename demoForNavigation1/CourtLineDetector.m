@@ -10,13 +10,8 @@
 @interface CourtLineDetector ()
 
 @property (nonatomic, assign) BOOL isDetecting;
-@property (nonatomic, strong) CIContext *ciContext;
 @property (nonatomic, assign) NSInteger frameCount;
-
-// Core Image filters
-@property (nonatomic, strong) CIFilter *edgeDetectionFilter;
-@property (nonatomic, strong) CIFilter *colorControlsFilter;
-@property (nonatomic, strong) CIFilter *exposureFilter;
+@property (nonatomic, assign) CGSize lastImageSize;
 
 @end
 
@@ -27,31 +22,12 @@
     if (self) {
         _isDetecting = NO;
         _frameCount = 0;
-        _edgeIntensity = 0.7;
-        _lineThreshold = 0.1;
-        _showOriginalOverlay = YES;
-
-        [self setupCIContext];
-        [self setupFilters];
+        _contrastAdjustment = 2.0;
+        _simplificationEpsilon = 0.002;
+        _detectDarkOnLight = YES;
+        _lastImageSize = CGSizeZero;
     }
     return self;
-}
-
-- (void)setupCIContext {
-    // Create CIContext with GPU rendering for better performance
-    NSDictionary *options = @{kCIContextUseSoftwareRenderer: @NO};
-    self.ciContext = [CIContext contextWithOptions:options];
-}
-
-- (void)setupFilters {
-    // Edge detection using Sobel-like convolution
-    self.edgeDetectionFilter = [CIFilter filterWithName:@"CIEdges"];
-
-    // Color controls for enhancing contrast
-    self.colorControlsFilter = [CIFilter filterWithName:@"CIColorControls"];
-
-    // Exposure adjustment
-    self.exposureFilter = [CIFilter filterWithName:@"CIExposureAdjust"];
 }
 
 - (void)startDetection {
@@ -68,93 +44,111 @@
         return;
     }
 
-    // Process every 2nd frame for performance
+    // Process every 3rd frame for performance
     self.frameCount++;
-    if (self.frameCount % 2 != 0) {
+    if (self.frameCount % 3 != 0) {
         return;
     }
 
-    CIImage *inputImage = [CIImage imageWithCVPixelBuffer:pixelBuffer];
+    if (@available(iOS 14.0, *)) {
+        [self detectContoursInPixelBuffer:pixelBuffer];
+    }
+}
 
-    if (!inputImage) {
+- (void)detectContoursInPixelBuffer:(CVPixelBufferRef)pixelBuffer API_AVAILABLE(ios(14.0)) {
+    size_t width = CVPixelBufferGetWidth(pixelBuffer);
+    size_t height = CVPixelBufferGetHeight(pixelBuffer);
+    self.lastImageSize = CGSizeMake(width, height);
+
+    // Create contour detection request
+    VNDetectContoursRequest *contoursRequest = [[VNDetectContoursRequest alloc] init];
+    contoursRequest.contrastAdjustment = self.contrastAdjustment;
+    contoursRequest.detectsDarkOnLight = self.detectDarkOnLight;
+    contoursRequest.maximumImageDimension = 512; // Reduce for performance
+
+    VNImageRequestHandler *handler = [[VNImageRequestHandler alloc] initWithCVPixelBuffer:pixelBuffer options:@{}];
+
+    NSError *error = nil;
+    [handler performRequests:@[contoursRequest] error:&error];
+
+    if (error) {
         dispatch_async(dispatch_get_main_queue(), ^{
             if ([self.delegate respondsToSelector:@selector(courtLineDetectionFailed:)]) {
-                [self.delegate courtLineDetectionFailed:@"无法获取图像"];
+                [self.delegate courtLineDetectionFailed:error.localizedDescription];
             }
         });
         return;
     }
 
-    // Process the image to detect lines
-    CIImage *processedImage = [self detectLinesInImage:inputImage];
-    NSInteger lineCount = [self estimateLineCount:processedImage];
+    // Process results
+    NSMutableArray<UIBezierPath *> *contourPaths = [NSMutableArray array];
+    NSInteger totalContours = 0;
 
+    for (VNContoursObservation *observation in contoursRequest.results) {
+        totalContours += observation.contourCount;
+
+        // Get top-level contours
+        NSInteger topLevelCount = observation.topLevelContourCount;
+        for (NSInteger i = 0; i < topLevelCount && i < 30; i++) { // Limit to 30 contours
+            NSError *contourError = nil;
+            VNContour *contour = [observation contourAtIndex:i error:&contourError];
+
+            if (contourError || !contour) continue;
+
+            // Filter by point count (ignore very small contours)
+            if (contour.pointCount < 10) continue;
+
+            // Simplify the contour path
+            VNContour *simplifiedContour = [contour polygonApproximationWithEpsilon:self.simplificationEpsilon error:nil];
+            if (!simplifiedContour) {
+                simplifiedContour = contour;
+            }
+
+            // Convert to UIBezierPath
+            CGPathRef cgPath = simplifiedContour.normalizedPath;
+            if (cgPath) {
+                UIBezierPath *path = [UIBezierPath bezierPathWithCGPath:cgPath];
+                [contourPaths addObject:path];
+            }
+
+            // Also process child contours (nested lines)
+            [self addChildContours:contour toArray:contourPaths depth:0];
+        }
+    }
+
+    // Notify delegate on main thread
     dispatch_async(dispatch_get_main_queue(), ^{
-        if ([self.delegate respondsToSelector:@selector(courtLinesDetectedWithImage:lineCount:)]) {
-            [self.delegate courtLinesDetectedWithImage:processedImage lineCount:lineCount];
+        if ([self.delegate respondsToSelector:@selector(courtLinesDetectedWithContours:lineCount:imageSize:)]) {
+            [self.delegate courtLinesDetectedWithContours:contourPaths
+                                                lineCount:contourPaths.count
+                                                imageSize:self.lastImageSize];
         }
     });
 }
 
-- (CIImage *)detectLinesInImage:(CIImage *)inputImage {
-    // Step 1: Enhance contrast to make lines more visible
-    [self.colorControlsFilter setValue:inputImage forKey:kCIInputImageKey];
-    [self.colorControlsFilter setValue:@(1.2) forKey:kCIInputContrastKey];
-    [self.colorControlsFilter setValue:@(0.0) forKey:kCIInputSaturationKey]; // Grayscale
-    [self.colorControlsFilter setValue:@(0.1) forKey:kCIInputBrightnessKey];
-    CIImage *contrastImage = self.colorControlsFilter.outputImage;
+- (void)addChildContours:(VNContour *)parentContour toArray:(NSMutableArray<UIBezierPath *> *)array depth:(NSInteger)depth API_AVAILABLE(ios(14.0)) {
+    if (depth > 2) return; // Limit recursion depth
 
-    // Step 2: Apply edge detection
-    [self.edgeDetectionFilter setValue:contrastImage forKey:kCIInputImageKey];
-    [self.edgeDetectionFilter setValue:@(self.edgeIntensity * 10.0) forKey:@"inputIntensity"];
-    CIImage *edgeImage = self.edgeDetectionFilter.outputImage;
+    NSInteger childCount = parentContour.childContourCount;
+    for (NSInteger i = 0; i < childCount && array.count < 50; i++) {
+        NSError *error = nil;
+        VNContour *child = [parentContour childContourAtIndex:i error:&error];
 
-    // Step 3: Enhance edges with exposure
-    [self.exposureFilter setValue:edgeImage forKey:kCIInputImageKey];
-    [self.exposureFilter setValue:@(1.5) forKey:kCIInputEVKey];
-    CIImage *enhancedEdges = self.exposureFilter.outputImage;
+        if (error || !child) continue;
+        if (child.pointCount < 8) continue;
 
-    if (self.showOriginalOverlay) {
-        // Blend edges with original image for better visualization
-        CIFilter *blendFilter = [CIFilter filterWithName:@"CIScreenBlendMode"];
-        [blendFilter setValue:inputImage forKey:kCIInputImageKey];
-        [blendFilter setValue:enhancedEdges forKey:kCIInputBackgroundImageKey];
-        return blendFilter.outputImage ?: enhancedEdges;
-    }
+        VNContour *simplified = [child polygonApproximationWithEpsilon:self.simplificationEpsilon error:nil];
+        if (!simplified) simplified = child;
 
-    return enhancedEdges;
-}
-
-- (NSInteger)estimateLineCount:(CIImage *)processedImage {
-    // Use Vision framework to detect contours/rectangles as a proxy for line count
-    if (@available(iOS 14.0, *)) {
-        __block NSInteger count = 0;
-
-        VNDetectContoursRequest *contoursRequest = [[VNDetectContoursRequest alloc] initWithCompletionHandler:^(VNRequest * _Nonnull request, NSError * _Nullable error) {
-            if (error) {
-                return;
-            }
-
-            for (VNContoursObservation *observation in request.results) {
-                count += observation.contourCount;
-            }
-        }];
-
-        contoursRequest.contrastAdjustment = 1.5;
-        contoursRequest.detectsDarkOnLight = NO;
-
-        CGImageRef cgImage = [self.ciContext createCGImage:processedImage fromRect:processedImage.extent];
-        if (cgImage) {
-            VNImageRequestHandler *handler = [[VNImageRequestHandler alloc] initWithCGImage:cgImage options:@{}];
-            [handler performRequests:@[contoursRequest] error:nil];
-            CGImageRelease(cgImage);
+        CGPathRef cgPath = simplified.normalizedPath;
+        if (cgPath) {
+            UIBezierPath *path = [UIBezierPath bezierPathWithCGPath:cgPath];
+            [array addObject:path];
         }
 
-        // Return a normalized count (contours can be many)
-        return MIN(count, 50);
+        // Recursively add grandchildren
+        [self addChildContours:child toArray:array depth:depth + 1];
     }
-
-    return 0;
 }
 
 @end
