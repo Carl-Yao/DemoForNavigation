@@ -8,6 +8,9 @@
 
 #import "AppDelegate.h"
 #import "ViewController.h"
+#import "BallBouncingViewController.h"
+#import "CourtLineViewController.h"
+#import "ShootingViewController.h"
 
 @interface AppDelegate ()
 
@@ -29,13 +32,19 @@
     //看来标题要在每个vc中设置self.title
 //    nav1.title = @"first";
 //    nav1.navigationItem.title = @"first";
-    UINavigationController * nav2 = [[UINavigationController alloc] initWithRootViewController:[[UIViewController alloc]init]];
-    nav2.tabBarItem.title = @"second";
+    UINavigationController * nav2 = [[UINavigationController alloc] initWithRootViewController:[[BallBouncingViewController alloc]init]];
+    nav2.tabBarItem.title = @"拍球检测";
     nav2.tabBarItem.image = nil;
-    UINavigationController * nav3 = [[UINavigationController alloc] initWithRootViewController:[[UIViewController alloc]init]];
-    nav3.tabBarItem.title = @"three";
+    nav2.navigationBar.barTintColor = [UIColor colorWithRed:0.2 green:0.6 blue:0.2 alpha:1.0];
+    UINavigationController * nav3 = [[UINavigationController alloc] initWithRootViewController:[[CourtLineViewController alloc]init]];
+    nav3.tabBarItem.title = @"场地线";
     nav3.tabBarItem.image = nil;
-    [tabController setViewControllers:@[nav1,nav2,nav3]];
+    nav3.navigationBar.barTintColor = [UIColor colorWithRed:0.1 green:0.4 blue:0.8 alpha:1.0];
+    UINavigationController * nav4 = [[UINavigationController alloc] initWithRootViewController:[[ShootingViewController alloc]init]];
+    nav4.tabBarItem.title = @"投篮";
+    nav4.tabBarItem.image = nil;
+    nav4.navigationBar.barTintColor = [UIColor colorWithRed:0.8 green:0.4 blue:0.0 alpha:1.0];
+    [tabController setViewControllers:@[nav1,nav2,nav3,nav4]];
     self.window.rootViewController = tabController;//[[UINavigationController alloc] init];
     //[[ViewController alloc] init];
     [self.window makeKeyAndVisible];

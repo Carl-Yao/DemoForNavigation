@@ -12,6 +12,12 @@
 		5D5E70EC1C7320D400CBCB42 /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 5D5E70EB1C7320D400CBCB42 /* ViewController.m */; };
 		5D5E70F11C7320D400CBCB42 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5D5E70F01C7320D400CBCB42 /* Assets.xcassets */; };
 		5D5E70F41C7320D400CBCB42 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 5D5E70F21C7320D400CBCB42 /* LaunchScreen.storyboard */; };
+		BBDET001B1C7320D400CBCB42 /* BallBouncingDetector.m in Sources */ = {isa = PBXBuildFile; fileRef = BBDET001M1C7320D400CBCB42 /* BallBouncingDetector.m */; };
+		BBVC0001B1C7320D400CBCB42 /* BallBouncingViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = BBVC0001M1C7320D400CBCB42 /* BallBouncingViewController.m */; };
+		CLDET001B1C7320D400CBCB42 /* CourtLineDetector.m in Sources */ = {isa = PBXBuildFile; fileRef = CLDET001M1C7320D400CBCB42 /* CourtLineDetector.m */; };
+		CLVC0001B1C7320D400CBCB42 /* CourtLineViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = CLVC0001M1C7320D400CBCB42 /* CourtLineViewController.m */; };
+		SHDET001B1C7320D400CBCB42 /* ShootingDetector.m in Sources */ = {isa = PBXBuildFile; fileRef = SHDET001M1C7320D400CBCB42 /* ShootingDetector.m */; };
+		SHVC0001B1C7320D400CBCB42 /* ShootingViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = SHVC0001M1C7320D400CBCB42 /* ShootingViewController.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -24,6 +30,18 @@
 		5D5E70F01C7320D400CBCB42 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5D5E70F31C7320D400CBCB42 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		5D5E70F51C7320D400CBCB42 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		BBDET001H1C7320D400CBCB42 /* BallBouncingDetector.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BallBouncingDetector.h; sourceTree = "<group>"; };
+		BBDET001M1C7320D400CBCB42 /* BallBouncingDetector.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BallBouncingDetector.m; sourceTree = "<group>"; };
+		BBVC0001H1C7320D400CBCB42 /* BallBouncingViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BallBouncingViewController.h; sourceTree = "<group>"; };
+		BBVC0001M1C7320D400CBCB42 /* BallBouncingViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BallBouncingViewController.m; sourceTree = "<group>"; };
+		CLDET001H1C7320D400CBCB42 /* CourtLineDetector.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CourtLineDetector.h; sourceTree = "<group>"; };
+		CLDET001M1C7320D400CBCB42 /* CourtLineDetector.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = CourtLineDetector.m; sourceTree = "<group>"; };
+		CLVC0001H1C7320D400CBCB42 /* CourtLineViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CourtLineViewController.h; sourceTree = "<group>"; };
+		CLVC0001M1C7320D400CBCB42 /* CourtLineViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = CourtLineViewController.m; sourceTree = "<group>"; };
+		SHDET001H1C7320D400CBCB42 /* ShootingDetector.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ShootingDetector.h; sourceTree = "<group>"; };
+		SHDET001M1C7320D400CBCB42 /* ShootingDetector.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ShootingDetector.m; sourceTree = "<group>"; };
+		SHVC0001H1C7320D400CBCB42 /* ShootingViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ShootingViewController.h; sourceTree = "<group>"; };
+		SHVC0001M1C7320D400CBCB42 /* ShootingViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ShootingViewController.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -60,6 +78,18 @@
 				5D5E70E81C7320D400CBCB42 /* AppDelegate.m */,
 				5D5E70EA1C7320D400CBCB42 /* ViewController.h */,
 				5D5E70EB1C7320D400CBCB42 /* ViewController.m */,
+				BBDET001H1C7320D400CBCB42 /* BallBouncingDetector.h */,
+				BBDET001M1C7320D400CBCB42 /* BallBouncingDetector.m */,
+				BBVC0001H1C7320D400CBCB42 /* BallBouncingViewController.h */,
+				BBVC0001M1C7320D400CBCB42 /* BallBouncingViewController.m */,
+				CLDET001H1C7320D400CBCB42 /* CourtLineDetector.h */,
+				CLDET001M1C7320D400CBCB42 /* CourtLineDetector.m */,
+				CLVC0001H1C7320D400CBCB42 /* CourtLineViewController.h */,
+				CLVC0001M1C7320D400CBCB42 /* CourtLineViewController.m */,
+				SHDET001H1C7320D400CBCB42 /* ShootingDetector.h */,
+				SHDET001M1C7320D400CBCB42 /* ShootingDetector.m */,
+				SHVC0001H1C7320D400CBCB42 /* ShootingViewController.h */,
+				SHVC0001M1C7320D400CBCB42 /* ShootingViewController.m */,
 				5D5E70F01C7320D400CBCB42 /* Assets.xcassets */,
 				5D5E70F21C7320D400CBCB42 /* LaunchScreen.storyboard */,
 				5D5E70F51C7320D400CBCB42 /* Info.plist */,
@@ -107,6 +137,8 @@
 				TargetAttributes = {
 					5D5E70E01C7320D400CBCB42 = {
 						CreatedOnToolsVersion = 7.2;
+						DevelopmentTeam = MB6T8NLNRW;
+						ProvisioningStyle = Manual;
 					};
 				};
 			};
@@ -115,6 +147,7 @@
 			developmentRegion = English;
 			hasScannedForEncodings = 0;
 			knownRegions = (
+				English,
 				en,
 				Base,
 			);
@@ -148,6 +181,12 @@
 				5D5E70EC1C7320D400CBCB42 /* ViewController.m in Sources */,
 				5D5E70E91C7320D400CBCB42 /* AppDelegate.m in Sources */,
 				5D5E70E61C7320D400CBCB42 /* main.m in Sources */,
+				BBDET001B1C7320D400CBCB42 /* BallBouncingDetector.m in Sources */,
+				BBVC0001B1C7320D400CBCB42 /* BallBouncingViewController.m in Sources */,
+				CLDET001B1C7320D400CBCB42 /* CourtLineDetector.m in Sources */,
+				CLVC0001B1C7320D400CBCB42 /* CourtLineViewController.m in Sources */,
+				SHDET001B1C7320D400CBCB42 /* ShootingDetector.m in Sources */,
+				SHVC0001B1C7320D400CBCB42 /* ShootingViewController.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -201,7 +240,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 9.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -238,7 +277,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 9.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				VALIDATE_PRODUCT = YES;
@@ -249,11 +288,16 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Manual;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = MB6T8NLNRW;
 				INFOPLIST_FILE = demoForNavigation1/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = YZX.demoForNavigation1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yy.demoForNavigation1;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "match Development *";
 			};
 			name = Debug;
 		};
@@ -261,11 +305,16 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Manual;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = MB6T8NLNRW;
 				INFOPLIST_FILE = demoForNavigation1/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = YZX.demoForNavigation1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yy.demoForNavigation1;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "match Development *";
 			};
 			name = Release;
 		};
@@ -288,6 +337,7 @@
 				5D5E70FA1C7320D400CBCB42 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
