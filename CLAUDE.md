@@ -67,7 +67,7 @@ This document provides guidance for AI assistants working with this iOS navigati
 | `ViewController.m` | Demonstrates navigation push/pop and navigation bar customization |
 | `BallBouncingDetector.m` | Core detection logic using Vision framework for body pose estimation |
 | `BallBouncingViewController.m` | Camera UI and detection interface for ball bouncing feature |
-| `CourtLineDetector.m` | Core detection logic using Core Image edge detection and Vision contours |
+| `CourtLineDetector.m` | Core detection logic using Vision contours with geometric analysis |
 | `CourtLineViewController.m` | Camera UI and detection interface for court line feature |
 | `ShootingDetector.m` | Core detection logic using Vision framework for shooting motion analysis |
 | `ShootingViewController.m` | Camera UI and detection interface for shooting detection feature |
@@ -108,19 +108,28 @@ The ball bouncing feature uses Apple's Vision framework to detect human body pos
 
 ### Court Line Detection
 
-The court line detection feature uses Core Image filters and Vision framework to detect basketball court lines:
+The court line detection feature uses Vision framework with geometric analysis to detect basketball court lines:
 
 1. **Camera Capture:** AVCaptureSession captures video frames at 720p resolution
-2. **Image Processing:** Core Image filters enhance contrast and convert to grayscale
-3. **Edge Detection:** CIEdges filter detects edges in the image using Sobel-like convolution
-4. **Contour Analysis:** VNDetectContoursRequest counts detected line contours
-5. **UI Feedback:** Real-time display with adjustable edge intensity and overlay options
+2. **Contour Detection:** VNDetectContoursRequest detects contours in the image
+3. **Geometric Analysis:** Each contour is analyzed for basketball court line characteristics:
+   - **Straightness:** Ratio of direct distance to path length (threshold: 90%)
+   - **Angle Classification:** Lines classified as horizontal (0°/180° ±20°) or vertical (90°/270° ±20°)
+   - **Arc Detection:** Curved lines with consistent curvature (for three-point arc, center circle)
+   - **Length Filter:** Minimum line length requirement (8% of image dimension)
+4. **Line Classification:** Lines are categorized into three types:
+   - **Horizontal Lines (Cyan):** Baseline, free throw line, mid-court line
+   - **Vertical Lines (Green):** Sidelines, lane lines
+   - **Arc Lines (Yellow):** Three-point arc, center circle, free throw semicircle
+5. **UI Feedback:** Color-coded overlay with separate layers for each line type
 
-**Detection Pipeline:**
-- `CIColorControls` → Grayscale conversion and contrast enhancement
-- `CIEdges` → Edge detection with adjustable intensity
-- `CIExposureAdjust` → Edge enhancement
-- `CIScreenBlendMode` → Optional overlay with original image
+**Detection Algorithm:**
+- Extracts points from contours using CGPath analysis
+- Calculates straightness as `directDistance / pathLength`
+- Classifies straight lines by angle (horizontal vs vertical)
+- Analyzes curvature consistency for arc detection
+- Filters out diagonal lines and irregular shapes (not typical of basketball courts)
+- Adjustable parameters: contrast, straightness threshold (sensitivity)
 
 ### Shooting Detection
 
