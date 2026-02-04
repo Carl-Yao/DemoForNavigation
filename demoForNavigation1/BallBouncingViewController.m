@@ -164,7 +164,7 @@
         case AVAuthorizationStatusAuthorized:
             [self setupCamera];
             break;
-        case AVAuthorizationStatusNotDetermined:
+        case AVAuthorizationStatusNotDetermined: {
             [AVCaptureDevice requestAccessForMediaType:AVMediaTypeVideo completionHandler:^(BOOL granted) {
                 dispatch_async(dispatch_get_main_queue(), ^{
                     if (granted) {
@@ -175,6 +175,7 @@
                 });
             }];
             break;
+        }
         default:
             [self showCameraPermissionAlert];
             break;
