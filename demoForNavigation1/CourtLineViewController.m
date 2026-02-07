@@ -3,7 +3,7 @@
 //  demoForNavigation1
 //
 //  View controller for basketball court line detection
-//  Displays detected court lines color-coded by type
+//  Displays FIBA template matched to detected edges
 //
 
 #import "CourtLineViewController.h"
@@ -20,22 +20,18 @@
 // Detector
 @property (nonatomic, strong) CourtLineDetector *detector;
 
-// Line overlay layers
-@property (nonatomic, strong) CAShapeLayer *baselineLayer;      // Red - baseline
-@property (nonatomic, strong) CAShapeLayer *halfCourtLayer;     // Blue - half-court line
-@property (nonatomic, strong) CAShapeLayer *sidelineLayer;      // Green - sidelines
-@property (nonatomic, strong) CAShapeLayer *freeThrowLayer;     // Yellow - free throw line
-@property (nonatomic, strong) CAShapeLayer *laneLineLayer;      // Cyan - lane lines
-@property (nonatomic, strong) CAShapeLayer *otherLineLayer;     // Gray - unclassified
+// Court overlay layer
+@property (nonatomic, strong) CAShapeLayer *courtLayer;      // Main court lines
+@property (nonatomic, strong) CAShapeLayer *threePointLayer; // Three-point arc
 
 // UI Elements
 @property (nonatomic, strong) UIView *cameraContainerView;
 @property (nonatomic, strong) UILabel *statusLabel;
-@property (nonatomic, strong) UILabel *detailLabel;
+@property (nonatomic, strong) UILabel *scoreLabel;
+@property (nonatomic, strong) UILabel *poseLabel;
 @property (nonatomic, strong) UIButton *startButton;
-@property (nonatomic, strong) UISlider *contrastSlider;
-@property (nonatomic, strong) UILabel *contrastLabel;
-@property (nonatomic, strong) UIView *legendView;
+@property (nonatomic, strong) UISlider *sensitivitySlider;
+@property (nonatomic, strong) UILabel *sensitivityLabel;
 
 @property (nonatomic, assign) BOOL isRunning;
 
@@ -52,7 +48,7 @@
 
     [self setupDetector];
     [self setupUI];
-    [self setupLineLayers];
+    [self setupCourtLayers];
     [self checkCameraPermission];
 }
 
@@ -70,34 +66,24 @@
 - (void)setupDetector {
     self.detector = [[CourtLineDetector alloc] init];
     self.detector.delegate = self;
-    self.detector.contrastAdjustment = 1.5;
-    self.detector.minLineLength = 0.08;
-    self.detector.angleThreshold = 20.0;
+    self.detector.edgeThreshold = 1.5;
+    self.detector.minMatchScore = 0.15;
 }
 
-- (void)setupLineLayers {
-    // Baseline (red)
-    self.baselineLayer = [self createShapeLayerWithColor:[UIColor redColor]];
-    // Half-court line (blue)
-    self.halfCourtLayer = [self createShapeLayerWithColor:[UIColor blueColor]];
-    // Sidelines (green)
-    self.sidelineLayer = [self createShapeLayerWithColor:[UIColor greenColor]];
-    // Free throw line (yellow)
-    self.freeThrowLayer = [self createShapeLayerWithColor:[UIColor yellowColor]];
-    // Lane lines (cyan)
-    self.laneLineLayer = [self createShapeLayerWithColor:[UIColor cyanColor]];
-    // Other lines (gray, dimmer)
-    self.otherLineLayer = [self createShapeLayerWithColor:[[UIColor grayColor] colorWithAlphaComponent:0.5]];
-    self.otherLineLayer.lineWidth = 1.5;
-}
+- (void)setupCourtLayers {
+    // Main court lines (cyan)
+    self.courtLayer = [CAShapeLayer layer];
+    self.courtLayer.strokeColor = [UIColor cyanColor].CGColor;
+    self.courtLayer.fillColor = [UIColor clearColor].CGColor;
+    self.courtLayer.lineWidth = 2.5;
+    self.courtLayer.lineCap = kCALineCapRound;
 
-- (CAShapeLayer *)createShapeLayerWithColor:(UIColor *)color {
-    CAShapeLayer *layer = [CAShapeLayer layer];
-    layer.strokeColor = color.CGColor;
-    layer.fillColor = [UIColor clearColor].CGColor;
-    layer.lineWidth = 3.0;
-    layer.lineCap = kCALineCapRound;
-    return layer;
+    // Three-point arc (yellow)
+    self.threePointLayer = [CAShapeLayer layer];
+    self.threePointLayer.strokeColor = [UIColor yellowColor].CGColor;
+    self.threePointLayer.fillColor = [UIColor clearColor].CGColor;
+    self.threePointLayer.lineWidth = 2.5;
+    self.threePointLayer.lineCap = kCALineCapRound;
 }
 
 - (void)setupUI {
@@ -118,35 +104,52 @@
     self.statusLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:self.statusLabel];
 
-    // Detail label
-    self.detailLabel = [[UILabel alloc] init];
-    self.detailLabel.text = @"横线: 0  竖线: 0";
-    self.detailLabel.textColor = [UIColor lightGrayColor];
-    self.detailLabel.textAlignment = NSTextAlignmentCenter;
-    self.detailLabel.font = [UIFont systemFontOfSize:14];
-    self.detailLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.view addSubview:self.detailLabel];
+    // Score label
+    self.scoreLabel = [[UILabel alloc] init];
+    self.scoreLabel.text = @"匹配度: --";
+    self.scoreLabel.textColor = [UIColor lightGrayColor];
+    self.scoreLabel.textAlignment = NSTextAlignmentCenter;
+    self.scoreLabel.font = [UIFont systemFontOfSize:14];
+    self.scoreLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.scoreLabel];
 
-    // Legend view
-    [self setupLegendView];
+    // Pose label (debug info)
+    self.poseLabel = [[UILabel alloc] init];
+    self.poseLabel.text = @"";
+    self.poseLabel.textColor = [UIColor grayColor];
+    self.poseLabel.textAlignment = NSTextAlignmentCenter;
+    self.poseLabel.font = [UIFont monospacedSystemFontOfSize:11 weight:UIFontWeightRegular];
+    self.poseLabel.numberOfLines = 2;
+    self.poseLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.poseLabel];
 
-    // Contrast slider label
-    self.contrastLabel = [[UILabel alloc] init];
-    self.contrastLabel.text = @"对比度: 1.5";
-    self.contrastLabel.textColor = [UIColor lightGrayColor];
-    self.contrastLabel.font = [UIFont systemFontOfSize:14];
-    self.contrastLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.view addSubview:self.contrastLabel];
+    // Legend
+    UILabel *legendLabel = [[UILabel alloc] init];
+    legendLabel.text = @"青色: 球场边线  黄色: 三分线";
+    legendLabel.textColor = [UIColor lightGrayColor];
+    legendLabel.textAlignment = NSTextAlignmentCenter;
+    legendLabel.font = [UIFont systemFontOfSize:12];
+    legendLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    legendLabel.tag = 100;
+    [self.view addSubview:legendLabel];
 
-    // Contrast slider
-    self.contrastSlider = [[UISlider alloc] init];
-    self.contrastSlider.minimumValue = 0.5;
-    self.contrastSlider.maximumValue = 3.0;
-    self.contrastSlider.value = 1.5;
-    self.contrastSlider.tintColor = [UIColor cyanColor];
-    self.contrastSlider.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.contrastSlider addTarget:self action:@selector(contrastChanged:) forControlEvents:UIControlEventValueChanged];
-    [self.view addSubview:self.contrastSlider];
+    // Sensitivity slider label
+    self.sensitivityLabel = [[UILabel alloc] init];
+    self.sensitivityLabel.text = @"灵敏度: 1.5";
+    self.sensitivityLabel.textColor = [UIColor lightGrayColor];
+    self.sensitivityLabel.font = [UIFont systemFontOfSize:14];
+    self.sensitivityLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.sensitivityLabel];
+
+    // Sensitivity slider
+    self.sensitivitySlider = [[UISlider alloc] init];
+    self.sensitivitySlider.minimumValue = 0.5;
+    self.sensitivitySlider.maximumValue = 3.0;
+    self.sensitivitySlider.value = 1.5;
+    self.sensitivitySlider.tintColor = [UIColor cyanColor];
+    self.sensitivitySlider.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.sensitivitySlider addTarget:self action:@selector(sensitivityChanged:) forControlEvents:UIControlEventValueChanged];
+    [self.view addSubview:self.sensitivitySlider];
 
     // Start/Stop button
     self.startButton = [UIButton buttonWithType:UIButtonTypeSystem];
@@ -158,6 +161,8 @@
     self.startButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.startButton addTarget:self action:@selector(toggleDetection) forControlEvents:UIControlEventTouchUpInside];
     [self.view addSubview:self.startButton];
+
+    UILabel *legend = (UILabel *)[self.view viewWithTag:100];
 
     // Layout constraints
     [NSLayoutConstraint activateConstraints:@[
@@ -171,25 +176,28 @@
         [self.statusLabel.topAnchor constraintEqualToAnchor:self.cameraContainerView.bottomAnchor constant:12],
         [self.statusLabel.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
 
-        // Detail label
-        [self.detailLabel.topAnchor constraintEqualToAnchor:self.statusLabel.bottomAnchor constant:4],
-        [self.detailLabel.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
+        // Score label
+        [self.scoreLabel.topAnchor constraintEqualToAnchor:self.statusLabel.bottomAnchor constant:4],
+        [self.scoreLabel.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
 
-        // Legend view
-        [self.legendView.topAnchor constraintEqualToAnchor:self.detailLabel.bottomAnchor constant:10],
-        [self.legendView.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
-        [self.legendView.heightAnchor constraintEqualToConstant:50],
-        [self.legendView.widthAnchor constraintEqualToConstant:320],
+        // Pose label
+        [self.poseLabel.topAnchor constraintEqualToAnchor:self.scoreLabel.bottomAnchor constant:4],
+        [self.poseLabel.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:20],
+        [self.poseLabel.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20],
 
-        // Contrast label
-        [self.contrastLabel.topAnchor constraintEqualToAnchor:self.legendView.bottomAnchor constant:15],
-        [self.contrastLabel.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:20],
-        [self.contrastLabel.widthAnchor constraintEqualToConstant:90],
+        // Legend
+        [legend.topAnchor constraintEqualToAnchor:self.poseLabel.bottomAnchor constant:10],
+        [legend.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
 
-        // Contrast slider
-        [self.contrastSlider.centerYAnchor constraintEqualToAnchor:self.contrastLabel.centerYAnchor],
-        [self.contrastSlider.leadingAnchor constraintEqualToAnchor:self.contrastLabel.trailingAnchor constant:10],
-        [self.contrastSlider.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20],
+        // Sensitivity label
+        [self.sensitivityLabel.topAnchor constraintEqualToAnchor:legend.bottomAnchor constant:15],
+        [self.sensitivityLabel.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:20],
+        [self.sensitivityLabel.widthAnchor constraintEqualToConstant:90],
+
+        // Sensitivity slider
+        [self.sensitivitySlider.centerYAnchor constraintEqualToAnchor:self.sensitivityLabel.centerYAnchor],
+        [self.sensitivitySlider.leadingAnchor constraintEqualToAnchor:self.sensitivityLabel.trailingAnchor constant:10],
+        [self.sensitivitySlider.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20],
 
         // Start button
         [self.startButton.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor constant:-20],
@@ -197,35 +205,6 @@
         [self.startButton.widthAnchor constraintEqualToConstant:200],
         [self.startButton.heightAnchor constraintEqualToConstant:50],
     ]];
-}
-
-- (void)setupLegendView {
-    self.legendView = [[UIView alloc] init];
-    self.legendView.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.view addSubview:self.legendView];
-
-    // Row 1
-    [self addLegendItem:@"底线" color:[UIColor redColor] atX:0 y:0];
-    [self addLegendItem:@"中线" color:[UIColor blueColor] atX:80 y:0];
-    [self addLegendItem:@"边线" color:[UIColor greenColor] atX:160 y:0];
-    [self addLegendItem:@"罚球线" color:[UIColor yellowColor] atX:240 y:0];
-
-    // Row 2
-    [self addLegendItem:@"罚球区" color:[UIColor cyanColor] atX:0 y:25];
-    [self addLegendItem:@"其他" color:[UIColor grayColor] atX:80 y:25];
-}
-
-- (void)addLegendItem:(NSString *)title color:(UIColor *)color atX:(CGFloat)x y:(CGFloat)y {
-    UIView *colorBox = [[UIView alloc] initWithFrame:CGRectMake(x, y + 2, 12, 12)];
-    colorBox.backgroundColor = color;
-    colorBox.layer.cornerRadius = 2;
-    [self.legendView addSubview:colorBox];
-
-    UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(x + 16, y, 60, 16)];
-    label.text = title;
-    label.textColor = [UIColor whiteColor];
-    label.font = [UIFont systemFontOfSize:11];
-    [self.legendView addSubview:label];
 }
 
 #pragma mark - Camera Setup
@@ -303,13 +282,9 @@
     self.previewLayer.videoGravity = AVLayerVideoGravityResizeAspectFill;
     [self.cameraContainerView.layer addSublayer:self.previewLayer];
 
-    // Add line layers on top
-    [self.cameraContainerView.layer addSublayer:self.otherLineLayer];
-    [self.cameraContainerView.layer addSublayer:self.laneLineLayer];
-    [self.cameraContainerView.layer addSublayer:self.freeThrowLayer];
-    [self.cameraContainerView.layer addSublayer:self.sidelineLayer];
-    [self.cameraContainerView.layer addSublayer:self.halfCourtLayer];
-    [self.cameraContainerView.layer addSublayer:self.baselineLayer];
+    // Add court layers on top
+    [self.cameraContainerView.layer addSublayer:self.courtLayer];
+    [self.cameraContainerView.layer addSublayer:self.threePointLayer];
 
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         [self.captureSession startRunning];
@@ -329,12 +304,8 @@
     [super viewDidLayoutSubviews];
     CGRect bounds = self.cameraContainerView.bounds;
     self.previewLayer.frame = bounds;
-    self.baselineLayer.frame = bounds;
-    self.halfCourtLayer.frame = bounds;
-    self.sidelineLayer.frame = bounds;
-    self.freeThrowLayer.frame = bounds;
-    self.laneLineLayer.frame = bounds;
-    self.otherLineLayer.frame = bounds;
+    self.courtLayer.frame = bounds;
+    self.threePointLayer.frame = bounds;
 }
 
 #pragma mark - Actions
@@ -346,7 +317,7 @@
         [self.startButton setTitle:@"开始检测" forState:UIControlStateNormal];
         self.startButton.backgroundColor = [UIColor colorWithRed:0.0 green:0.6 blue:0.9 alpha:1.0];
         self.statusLabel.text = @"已暂停";
-        [self clearAllLayers];
+        [self clearCourtLayers];
     } else {
         [self.detector startDetection];
         self.isRunning = YES;
@@ -356,18 +327,14 @@
     }
 }
 
-- (void)contrastChanged:(UISlider *)slider {
-    self.detector.contrastAdjustment = slider.value;
-    self.contrastLabel.text = [NSString stringWithFormat:@"对比度: %.1f", slider.value];
+- (void)sensitivityChanged:(UISlider *)slider {
+    self.detector.edgeThreshold = slider.value;
+    self.sensitivityLabel.text = [NSString stringWithFormat:@"灵敏度: %.1f", slider.value];
 }
 
-- (void)clearAllLayers {
-    self.baselineLayer.path = nil;
-    self.halfCourtLayer.path = nil;
-    self.sidelineLayer.path = nil;
-    self.freeThrowLayer.path = nil;
-    self.laneLineLayer.path = nil;
-    self.otherLineLayer.path = nil;
+- (void)clearCourtLayers {
+    self.courtLayer.path = nil;
+    self.threePointLayer.path = nil;
 }
 
 #pragma mark - AVCaptureVideoDataOutputSampleBufferDelegate
@@ -381,114 +348,74 @@
 
 #pragma mark - CourtLineDetectorDelegate
 
-- (void)courtLineDetector:(id)detector didDetectCourt:(DetectedCourt *)court inImageSize:(CGSize)imageSize {
-    // Update status
-    NSInteger totalLines = court.horizontalLines.count + court.verticalLines.count;
-    self.detailLabel.text = [NSString stringWithFormat:@"横线: %lu  竖线: %lu",
-                             (unsigned long)court.horizontalLines.count,
-                             (unsigned long)court.verticalLines.count];
+- (void)courtLineDetector:(id)detector didDetectResult:(CourtDetectionResult *)result {
+    // Update score display
+    if (result.bestPose) {
+        CGFloat scorePercent = result.bestPose.matchScore * 100;
+        self.scoreLabel.text = [NSString stringWithFormat:@"匹配度: %.1f%%", scorePercent];
 
-    if (court.isCourtDetected) {
-        self.statusLabel.text = @"检测到球场";
-        self.statusLabel.textColor = [UIColor greenColor];
-    } else if (totalLines > 0) {
-        self.statusLabel.text = @"检测中...";
-        self.statusLabel.textColor = [UIColor yellowColor];
-    } else {
-        self.statusLabel.text = @"未检测到场地线";
-        self.statusLabel.textColor = [UIColor redColor];
+        // Show pose debug info
+        self.poseLabel.text = [NSString stringWithFormat:@"位置:(%.2f,%.2f) 旋转:%.0f° 缩放:%.2f 透视:%.2f",
+                               result.bestPose.centerX, result.bestPose.centerY,
+                               result.bestPose.rotation, result.bestPose.scale,
+                               result.bestPose.perspectiveY];
     }
 
-    // Draw lines by type
-    [self drawLines:court];
+    // Update status
+    if (result.courtFound) {
+        self.statusLabel.text = @"检测到球场";
+        self.statusLabel.textColor = [UIColor greenColor];
+    } else {
+        self.statusLabel.text = @"匹配中...";
+        self.statusLabel.textColor = [UIColor yellowColor];
+    }
+
+    // Draw projected court lines
+    [self drawProjectedLines:result.projectedLines courtFound:result.courtFound];
 }
 
-- (void)drawLines:(DetectedCourt *)court {
+- (void)drawProjectedLines:(NSArray<ProjectedLine *> *)projectedLines courtFound:(BOOL)courtFound {
     CGRect bounds = self.cameraContainerView.bounds;
     CGFloat viewWidth = bounds.size.width;
     CGFloat viewHeight = bounds.size.height;
 
-    UIBezierPath *baselinePath = [UIBezierPath bezierPath];
-    UIBezierPath *halfCourtPath = [UIBezierPath bezierPath];
-    UIBezierPath *sidelinePath = [UIBezierPath bezierPath];
-    UIBezierPath *freeThrowPath = [UIBezierPath bezierPath];
-    UIBezierPath *laneLinePath = [UIBezierPath bezierPath];
-    UIBezierPath *otherPath = [UIBezierPath bezierPath];
+    UIBezierPath *courtPath = [UIBezierPath bezierPath];
+    UIBezierPath *threePointPath = [UIBezierPath bezierPath];
 
-    // Draw horizontal lines
-    for (DetectedLine *line in court.horizontalLines) {
-        UIBezierPath *linePath = [self pathForLine:line viewWidth:viewWidth viewHeight:viewHeight];
+    for (ProjectedLine *line in projectedLines) {
+        if (!line.isVisible) continue;
 
-        switch (line.lineType) {
-            case CourtLineTypeBaseline:
-                [baselinePath appendPath:linePath];
-                break;
-            case CourtLineTypeHalfCourtLine:
-                [halfCourtPath appendPath:linePath];
-                break;
-            case CourtLineTypeFreeThrowLine:
-                [freeThrowPath appendPath:linePath];
-                break;
-            default:
-                [otherPath appendPath:linePath];
-                break;
+        // Convert normalized coords to view coords
+        CGFloat startX = line.start.x * viewWidth;
+        CGFloat startY = line.start.y * viewHeight;
+        CGFloat endX = line.end.x * viewWidth;
+        CGFloat endY = line.end.y * viewHeight;
+
+        UIBezierPath *linePath = [UIBezierPath bezierPath];
+        [linePath moveToPoint:CGPointMake(startX, startY)];
+        [linePath addLineToPoint:CGPointMake(endX, endY)];
+
+        // Route to appropriate layer based on line name
+        if ([line.name hasPrefix:@"three"]) {
+            [threePointPath appendPath:linePath];
+        } else {
+            [courtPath appendPath:linePath];
         }
     }
 
-    // Draw vertical lines
-    for (DetectedLine *line in court.verticalLines) {
-        UIBezierPath *linePath = [self pathForLine:line viewWidth:viewWidth viewHeight:viewHeight];
+    // Update layers with opacity based on match confidence
+    CGFloat opacity = courtFound ? 1.0 : 0.5;
+    self.courtLayer.opacity = opacity;
+    self.threePointLayer.opacity = opacity;
 
-        switch (line.lineType) {
-            case CourtLineTypeSideline:
-                [sidelinePath appendPath:linePath];
-                break;
-            case CourtLineTypeLaneLine:
-                [laneLinePath appendPath:linePath];
-                break;
-            default:
-                [otherPath appendPath:linePath];
-                break;
-        }
-    }
-
-    // Draw other lines (arcs, etc.)
-    for (DetectedLine *line in court.arcLines) {
-        UIBezierPath *linePath = [self pathForLine:line viewWidth:viewWidth viewHeight:viewHeight];
-        [otherPath appendPath:linePath];
-    }
-
-    // Update layers
-    self.baselineLayer.path = baselinePath.CGPath;
-    self.halfCourtLayer.path = halfCourtPath.CGPath;
-    self.sidelineLayer.path = sidelinePath.CGPath;
-    self.freeThrowLayer.path = freeThrowPath.CGPath;
-    self.laneLineLayer.path = laneLinePath.CGPath;
-    self.otherLineLayer.path = otherPath.CGPath;
+    self.courtLayer.path = courtPath.CGPath;
+    self.threePointLayer.path = threePointPath.CGPath;
 }
 
-- (UIBezierPath *)pathForLine:(DetectedLine *)line viewWidth:(CGFloat)viewWidth viewHeight:(CGFloat)viewHeight {
-    // Transform from normalized Vision coords to view coords
-    // Vision: (0,0) bottom-left, (1,1) top-right
-    // Camera is landscape, display is portrait - need rotation
-
-    // Rotate 90 degrees: x' = y, y' = 1 - x
-    CGFloat startX = line.startPoint.y * viewWidth;
-    CGFloat startY = (1.0 - line.startPoint.x) * viewHeight;
-    CGFloat endX = line.endPoint.y * viewWidth;
-    CGFloat endY = (1.0 - line.endPoint.x) * viewHeight;
-
-    UIBezierPath *path = [UIBezierPath bezierPath];
-    [path moveToPoint:CGPointMake(startX, startY)];
-    [path addLineToPoint:CGPointMake(endX, endY)];
-
-    return path;
-}
-
-- (void)courtLineDetectionFailed:(NSString *)reason {
-    self.statusLabel.text = reason;
+- (void)courtLineDetectorDidFail:(id)detector withError:(NSString *)error {
+    self.statusLabel.text = error;
     self.statusLabel.textColor = [UIColor redColor];
-    [self clearAllLayers];
+    [self clearCourtLayers];
 }
 
 @end
