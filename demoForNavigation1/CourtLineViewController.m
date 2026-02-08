@@ -74,6 +74,17 @@ static const CGFloat kHandleSize = 44.0;
     [self checkCameraPermission];
 }
 
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    // Debug: verify button exists and is visible
+    NSLog(@"Calibrate button: %@, frame: %@, hidden: %d, alpha: %f, superview: %@",
+          self.calibrateButton,
+          NSStringFromCGRect(self.calibrateButton.frame),
+          self.calibrateButton.hidden,
+          self.calibrateButton.alpha,
+          self.calibrateButton.superview);
+}
+
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
     [self stopCamera];
