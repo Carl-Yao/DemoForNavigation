@@ -125,7 +125,7 @@
 
     // Legend
     UILabel *legendLabel = [[UILabel alloc] init];
-    legendLabel.text = @"青色: 球场边线  黄色: 三分线";
+    legendLabel.text = @"青色: 边界线  黄色: 罚球线/禁区线";
     legendLabel.textColor = [UIColor lightGrayColor];
     legendLabel.textAlignment = NSTextAlignmentCenter;
     legendLabel.font = [UIFont systemFontOfSize:12];
@@ -379,37 +379,45 @@
     CGFloat viewWidth = bounds.size.width;
     CGFloat viewHeight = bounds.size.height;
 
-    UIBezierPath *courtPath = [UIBezierPath bezierPath];
-    UIBezierPath *threePointPath = [UIBezierPath bezierPath];
+    UIBezierPath *courtPath = [UIBezierPath bezierPath];      // Boundary lines (cyan)
+    UIBezierPath *interiorPath = [UIBezierPath bezierPath];   // Interior lines (yellow)
 
     for (ProjectedLine *line in projectedLines) {
         if (!line.isVisible) continue;
 
-        // Convert normalized coords to view coords
+        // Convert normalized coords to view coords (flip Y for screen coordinates)
         CGFloat startX = line.start.x * viewWidth;
-        CGFloat startY = line.start.y * viewHeight;
+        CGFloat startY = (1.0 - line.start.y) * viewHeight;
         CGFloat endX = line.end.x * viewWidth;
-        CGFloat endY = line.end.y * viewHeight;
+        CGFloat endY = (1.0 - line.end.y) * viewHeight;
 
         UIBezierPath *linePath = [UIBezierPath bezierPath];
         [linePath moveToPoint:CGPointMake(startX, startY)];
         [linePath addLineToPoint:CGPointMake(endX, endY)];
 
         // Route to appropriate layer based on line name
-        if ([line.name hasPrefix:@"three"]) {
-            [threePointPath appendPath:linePath];
+        // Boundary lines: baseline, midcourt, sideline_left, sideline_right
+        // Interior lines: freethrow, lane
+        if ([line.name hasPrefix:@"baseline"] ||
+            [line.name hasPrefix:@"midcourt"] ||
+            [line.name hasPrefix:@"sideline"]) {
+            [courtPath appendPath:linePath];
+        } else if ([line.name hasPrefix:@"freethrow"] ||
+                   [line.name hasPrefix:@"lane"]) {
+            [interiorPath appendPath:linePath];
         } else {
+            // Unclassified lines (horizontal/vertical) - show in low opacity
             [courtPath appendPath:linePath];
         }
     }
 
     // Update layers with opacity based on match confidence
-    CGFloat opacity = courtFound ? 1.0 : 0.5;
+    CGFloat opacity = courtFound ? 1.0 : 0.4;
     self.courtLayer.opacity = opacity;
-    self.threePointLayer.opacity = opacity;
+    self.threePointLayer.opacity = courtFound ? 1.0 : 0.3;
 
     self.courtLayer.path = courtPath.CGPath;
-    self.threePointLayer.path = threePointPath.CGPath;
+    self.threePointLayer.path = interiorPath.CGPath;
 }
 
 - (void)courtLineDetectorDidFail:(id)detector withError:(NSString *)error {

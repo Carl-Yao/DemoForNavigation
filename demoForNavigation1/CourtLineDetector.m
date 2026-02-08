@@ -2,17 +2,17 @@
 //  CourtLineDetector.m
 //  demoForNavigation1
 //
-//  Basketball court line detection using FIBA template matching
+//  Basketball court line detection using line detection + FIBA geometry validation
 //
-//  FIBA Half-Court Dimensions (meters):
-//  - Court: 15m (width) x 14m (length from baseline to half-court)
-//  - Free throw line: 5.8m from baseline
-//  - Free throw lane: 4.9m wide
-//  - Three-point arc: 6.75m radius
-//  - Restricted area arc: 1.25m radius
+//  Strategy:
+//  1. Use Vision contours to detect potential lines
+//  2. Filter lines by straightness and length
+//  3. Validate line relationships against FIBA court geometry
+//  4. Find the best matching court configuration
 //
 
 #import "CourtLineDetector.h"
+#import <Vision/Vision.h>
 
 #pragma mark - Model Classes
 
@@ -68,15 +68,35 @@
 }
 @end
 
+#pragma mark - Detected Line Helper
+
+@interface DetectedLine : NSObject
+@property (nonatomic, assign) CGPoint start;
+@property (nonatomic, assign) CGPoint end;
+@property (nonatomic, assign) CGFloat length;
+@property (nonatomic, assign) CGFloat angle;  // 0-180 degrees
+@property (nonatomic, assign) BOOL isHorizontal;  // angle near 0 or 180
+@property (nonatomic, assign) BOOL isVertical;    // angle near 90
+@end
+
+@implementation DetectedLine
+@end
+
 #pragma mark - CourtLineDetector
 
 @interface CourtLineDetector ()
 
 @property (nonatomic, assign) BOOL isDetecting;
 @property (nonatomic, assign) NSInteger frameCount;
-@property (nonatomic, strong) NSArray<TemplateLine *> *courtTemplate;
 @property (nonatomic, strong) CIContext *ciContext;
-@property (nonatomic, strong) CourtPose *lastBestPose;  // For temporal smoothing
+
+// Detected lines from current frame
+@property (nonatomic, strong) NSArray<DetectedLine *> *horizontalLines;
+@property (nonatomic, strong) NSArray<DetectedLine *> *verticalLines;
+
+// Best court match (for temporal smoothing)
+@property (nonatomic, strong) NSArray<ProjectedLine *> *lastCourtLines;
+@property (nonatomic, assign) CGFloat lastMatchScore;
 
 @end
 
@@ -87,99 +107,13 @@
     if (self) {
         _isDetecting = NO;
         _frameCount = 0;
-        _edgeThreshold = 1.5;
-        _minMatchScore = 0.15;
+        _edgeThreshold = 0.02;  // Contour threshold
+        _minMatchScore = 0.3;
         _ciContext = [CIContext contextWithOptions:@{kCIContextUseSoftwareRenderer: @NO}];
-        [self buildCourtTemplate];
+        _horizontalLines = @[];
+        _verticalLines = @[];
     }
     return self;
-}
-
-#pragma mark - FIBA Court Template
-
-- (void)buildCourtTemplate {
-    // FIBA half-court normalized to (-0.5, -0.5) to (0.5, 0.5)
-    // Aspect ratio: 15m / 14m ≈ 1.07
-    // We normalize width to 1.0, so height = 14/15 ≈ 0.933
-
-    CGFloat halfWidth = 0.5;
-    CGFloat halfHeight = 0.5 * (14.0 / 15.0);  // Maintain aspect ratio
-
-    // Free throw line: 5.8m from baseline = 5.8/14 ≈ 0.414 of length
-    CGFloat freeThrowY = -halfHeight + (halfHeight * 2) * (5.8 / 14.0);
-
-    // Free throw lane: 4.9m wide = 4.9/15 ≈ 0.327 of width
-    CGFloat laneHalfWidth = halfWidth * (4.9 / 15.0) / 2.0;
-
-    NSMutableArray *lines = [NSMutableArray array];
-
-    // Baseline (bottom)
-    [lines addObject:[TemplateLine lineFrom:CGPointMake(-halfWidth, -halfHeight)
-                                         to:CGPointMake(halfWidth, -halfHeight)
-                                       name:@"baseline"]];
-
-    // Half-court line (top)
-    [lines addObject:[TemplateLine lineFrom:CGPointMake(-halfWidth, halfHeight)
-                                         to:CGPointMake(halfWidth, halfHeight)
-                                       name:@"halfcourt"]];
-
-    // Left sideline
-    [lines addObject:[TemplateLine lineFrom:CGPointMake(-halfWidth, -halfHeight)
-                                         to:CGPointMake(-halfWidth, halfHeight)
-                                       name:@"sideline_left"]];
-
-    // Right sideline
-    [lines addObject:[TemplateLine lineFrom:CGPointMake(halfWidth, -halfHeight)
-                                         to:CGPointMake(halfWidth, halfHeight)
-                                       name:@"sideline_right"]];
-
-    // Free throw line
-    [lines addObject:[TemplateLine lineFrom:CGPointMake(-laneHalfWidth, freeThrowY)
-                                         to:CGPointMake(laneHalfWidth, freeThrowY)
-                                       name:@"freethrow"]];
-
-    // Left lane line
-    [lines addObject:[TemplateLine lineFrom:CGPointMake(-laneHalfWidth, -halfHeight)
-                                         to:CGPointMake(-laneHalfWidth, freeThrowY)
-                                       name:@"lane_left"]];
-
-    // Right lane line
-    [lines addObject:[TemplateLine lineFrom:CGPointMake(laneHalfWidth, -halfHeight)
-                                         to:CGPointMake(laneHalfWidth, freeThrowY)
-                                       name:@"lane_right"]];
-
-    // Three-point arc (approximated with line segments)
-    // 6.75m radius, but corners are straight at 0.9m from sideline
-    CGFloat threePointRadius = 6.75 / 15.0;  // Normalized
-    CGFloat cornerDistance = 0.9 / 15.0;     // Corner three distance from sideline
-
-    // Left corner three
-    [lines addObject:[TemplateLine lineFrom:CGPointMake(-halfWidth + cornerDistance, -halfHeight)
-                                         to:CGPointMake(-halfWidth + cornerDistance, -halfHeight + 0.15)
-                                       name:@"three_corner_left"]];
-
-    // Right corner three
-    [lines addObject:[TemplateLine lineFrom:CGPointMake(halfWidth - cornerDistance, -halfHeight)
-                                         to:CGPointMake(halfWidth - cornerDistance, -halfHeight + 0.15)
-                                       name:@"three_corner_right"]];
-
-    // Arc segments (simplified)
-    NSInteger arcSegments = 8;
-    CGFloat arcStartAngle = M_PI * 0.15;  // Start angle
-    CGFloat arcEndAngle = M_PI * 0.85;    // End angle
-    CGFloat basketY = -halfHeight + 1.575 / 14.0;  // Basket is 1.575m from baseline
-
-    for (NSInteger i = 0; i < arcSegments; i++) {
-        CGFloat angle1 = arcStartAngle + (arcEndAngle - arcStartAngle) * i / arcSegments;
-        CGFloat angle2 = arcStartAngle + (arcEndAngle - arcStartAngle) * (i + 1) / arcSegments;
-
-        CGPoint p1 = CGPointMake(cos(angle1) * threePointRadius, basketY + sin(angle1) * threePointRadius);
-        CGPoint p2 = CGPointMake(cos(angle2) * threePointRadius, basketY + sin(angle2) * threePointRadius);
-
-        [lines addObject:[TemplateLine lineFrom:p1 to:p2 name:@"three_arc"]];
-    }
-
-    self.courtTemplate = lines;
 }
 
 #pragma mark - Detection Control
@@ -187,7 +121,8 @@
 - (void)startDetection {
     self.isDetecting = YES;
     self.frameCount = 0;
-    self.lastBestPose = nil;
+    self.lastCourtLines = nil;
+    self.lastMatchScore = 0;
 }
 
 - (void)stopDetection {
@@ -206,7 +141,6 @@
 #pragma mark - Main Detection
 
 - (void)detectCourtInPixelBuffer:(CVPixelBufferRef)pixelBuffer {
-    // Create edge image
     CIImage *inputImage = [CIImage imageWithCVPixelBuffer:pixelBuffer];
     if (!inputImage) {
         [self reportError:@"Failed to create image"];
@@ -215,350 +149,395 @@
 
     // Rotate for portrait display
     inputImage = [inputImage imageByApplyingCGOrientation:kCGImagePropertyOrientationRight];
-    CGRect extent = inputImage.extent;
+    CGSize imageSize = inputImage.extent.size;
 
-    // Create edge-detected image
-    CIImage *edgeImage = [self createEdgeImage:inputImage];
-    if (!edgeImage) {
-        [self reportError:@"Edge detection failed"];
+    // Step 1: Detect contours using Vision
+    [self detectContoursInImage:inputImage imageSize:imageSize completion:^(NSArray<DetectedLine *> *lines) {
+        if (lines.count == 0) {
+            [self reportNoCourtFound];
+            return;
+        }
+
+        // Step 2: Classify lines as horizontal or vertical
+        [self classifyLines:lines];
+
+        // Step 3: Find best court configuration
+        CourtDetectionResult *result = [self findBestCourtConfiguration:imageSize];
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self.delegate courtLineDetector:self didDetectResult:result];
+        });
+    }];
+}
+
+#pragma mark - Contour Detection
+
+- (void)detectContoursInImage:(CIImage *)image imageSize:(CGSize)imageSize completion:(void(^)(NSArray<DetectedLine *> *))completion {
+
+    // Preprocess: enhance contrast
+    CIFilter *colorControls = [CIFilter filterWithName:@"CIColorControls"];
+    [colorControls setValue:image forKey:kCIInputImageKey];
+    [colorControls setValue:@1.5 forKey:kCIInputContrastKey];
+    [colorControls setValue:@0 forKey:kCIInputSaturationKey];
+    CIImage *processedImage = colorControls.outputImage;
+
+    CGImageRef cgImage = [self.ciContext createCGImage:processedImage fromRect:processedImage.extent];
+    if (!cgImage) {
+        completion(@[]);
         return;
     }
 
-    // Sample edge image into a buffer for fast access
-    NSData *edgeData = [self sampleEdgeImage:edgeImage extent:extent];
-    if (!edgeData) {
-        [self reportError:@"Failed to sample edges"];
-        return;
+    VNDetectContoursRequest *request = [[VNDetectContoursRequest alloc] initWithCompletionHandler:^(VNRequest *request, NSError *error) {
+        CGImageRelease(cgImage);
+
+        if (error) {
+            completion(@[]);
+            return;
+        }
+
+        NSMutableArray<DetectedLine *> *lines = [NSMutableArray array];
+
+        for (VNContoursObservation *observation in request.results) {
+            // Process top-level contours
+            for (NSInteger i = 0; i < observation.topLevelContourCount; i++) {
+                VNContour *contour = [observation topLevelContourAtIndex:i error:nil];
+                if (!contour) continue;
+
+                DetectedLine *line = [self extractLineFromContour:contour imageSize:imageSize];
+                if (line) {
+                    [lines addObject:line];
+                }
+
+                // Also check child contours
+                for (NSInteger j = 0; j < contour.childContourCount; j++) {
+                    VNContour *child = [contour childContourAtIndex:j error:nil];
+                    if (!child) continue;
+
+                    DetectedLine *childLine = [self extractLineFromContour:child imageSize:imageSize];
+                    if (childLine) {
+                        [lines addObject:childLine];
+                    }
+                }
+            }
+        }
+
+        completion(lines);
+    }];
+
+    request.contrastAdjustment = self.edgeThreshold;
+    request.detectsDarkOnLight = NO;
+
+    VNImageRequestHandler *handler = [[VNImageRequestHandler alloc] initWithCGImage:cgImage options:@{}];
+
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        [handler performRequests:@[request] error:nil];
+    });
+}
+
+- (DetectedLine *)extractLineFromContour:(VNContour *)contour imageSize:(CGSize)imageSize {
+    NSInteger pointCount = contour.pointCount;
+    if (pointCount < 2) return nil;
+
+    // Get contour points
+    const simd_float2 *points = contour.normalizedPoints;
+
+    // Calculate bounding box and path length
+    CGFloat minX = CGFLOAT_MAX, maxX = -CGFLOAT_MAX;
+    CGFloat minY = CGFLOAT_MAX, maxY = -CGFLOAT_MAX;
+    CGFloat pathLength = 0;
+
+    for (NSInteger i = 0; i < pointCount; i++) {
+        CGFloat x = points[i].x;
+        CGFloat y = points[i].y;
+
+        minX = MIN(minX, x);
+        maxX = MAX(maxX, x);
+        minY = MIN(minY, y);
+        maxY = MAX(maxY, y);
+
+        if (i > 0) {
+            CGFloat dx = x - points[i-1].x;
+            CGFloat dy = y - points[i-1].y;
+            pathLength += sqrt(dx*dx + dy*dy);
+        }
     }
 
-    NSInteger sampleWidth = 128;
-    NSInteger sampleHeight = 128;
+    CGFloat width = maxX - minX;
+    CGFloat height = maxY - minY;
+    CGFloat directDistance = sqrt(width*width + height*height);
 
-    // Find best matching pose using coarse-to-fine search
-    CourtPose *bestPose = [self findBestPose:edgeData
-                                sampleWidth:sampleWidth
-                               sampleHeight:sampleHeight];
+    // Filter: minimum length (at least 8% of image dimension)
+    CGFloat minLength = 0.08;
+    if (directDistance < minLength) return nil;
 
-    // Apply temporal smoothing
-    if (self.lastBestPose && bestPose.matchScore > self.minMatchScore) {
-        bestPose = [self smoothPose:bestPose withPrevious:self.lastBestPose];
+    // Filter: straightness (direct distance / path length > 85%)
+    CGFloat straightness = pathLength > 0 ? directDistance / pathLength : 0;
+    if (straightness < 0.85) return nil;
+
+    // Calculate line endpoints and angle
+    CGPoint start = CGPointMake(points[0].x, points[0].y);
+    CGPoint end = CGPointMake(points[pointCount-1].x, points[pointCount-1].y);
+
+    CGFloat dx = end.x - start.x;
+    CGFloat dy = end.y - start.y;
+    CGFloat angle = atan2(dy, dx) * 180.0 / M_PI;
+    if (angle < 0) angle += 180;  // Normalize to 0-180
+
+    // Create detected line
+    DetectedLine *line = [[DetectedLine alloc] init];
+    line.start = start;
+    line.end = end;
+    line.length = directDistance;
+    line.angle = angle;
+
+    // Classify: horizontal (0-25° or 155-180°) or vertical (65-115°)
+    line.isHorizontal = (angle <= 25) || (angle >= 155);
+    line.isVertical = (angle >= 65) && (angle <= 115);
+
+    return line;
+}
+
+#pragma mark - Line Classification
+
+- (void)classifyLines:(NSArray<DetectedLine *> *)lines {
+    NSMutableArray *horizontal = [NSMutableArray array];
+    NSMutableArray *vertical = [NSMutableArray array];
+
+    for (DetectedLine *line in lines) {
+        if (line.isHorizontal) {
+            [horizontal addObject:line];
+        } else if (line.isVertical) {
+            [vertical addObject:line];
+        }
     }
-    self.lastBestPose = bestPose;
 
-    // Project template with best pose
-    NSArray<ProjectedLine *> *projectedLines = [self projectTemplateWithPose:bestPose];
+    // Sort by length (longest first)
+    [horizontal sortUsingComparator:^NSComparisonResult(DetectedLine *a, DetectedLine *b) {
+        return [@(b.length) compare:@(a.length)];
+    }];
+    [vertical sortUsingComparator:^NSComparisonResult(DetectedLine *a, DetectedLine *b) {
+        return [@(b.length) compare:@(a.length)];
+    }];
 
-    // Create result
+    self.horizontalLines = horizontal;
+    self.verticalLines = vertical;
+}
+
+#pragma mark - Court Configuration Finding
+
+- (CourtDetectionResult *)findBestCourtConfiguration:(CGSize)imageSize {
     CourtDetectionResult *result = [[CourtDetectionResult alloc] init];
-    result.bestPose = bestPose;
-    result.projectedLines = projectedLines;
-    result.courtFound = bestPose.matchScore >= self.minMatchScore;
+    result.courtFound = NO;
+
+    NSMutableArray<ProjectedLine *> *courtLines = [NSMutableArray array];
+    CGFloat matchScore = 0;
+    NSInteger matchedLines = 0;
+
+    // Need at least some horizontal and vertical lines
+    if (self.horizontalLines.count < 1 || self.verticalLines.count < 1) {
+        // Just show detected lines without validation
+        for (DetectedLine *line in self.horizontalLines) {
+            ProjectedLine *pl = [[ProjectedLine alloc] init];
+            pl.start = line.start;
+            pl.end = line.end;
+            pl.name = @"horizontal";
+            pl.isVisible = YES;
+            [courtLines addObject:pl];
+        }
+        for (DetectedLine *line in self.verticalLines) {
+            ProjectedLine *pl = [[ProjectedLine alloc] init];
+            pl.start = line.start;
+            pl.end = line.end;
+            pl.name = @"vertical";
+            pl.isVisible = YES;
+            [courtLines addObject:pl];
+        }
+        result.projectedLines = courtLines;
+        return result;
+    }
+
+    // FIBA half-court aspect ratio: 15m / 14m ≈ 1.07 (width / height)
+    // On phone held portrait, court appears wider than tall
+    CGFloat fibaAspect = 15.0 / 14.0;
+    CGFloat aspectTolerance = 0.4;  // Allow some perspective distortion
+
+    // Try to find a rectangular court region
+    // Look for two roughly parallel horizontal lines (baseline + free-throw or mid-court)
+    // and two roughly parallel vertical lines (sidelines)
+
+    DetectedLine *bestTop = nil;
+    DetectedLine *bestBottom = nil;
+    DetectedLine *bestLeft = nil;
+    DetectedLine *bestRight = nil;
+    CGFloat bestRectScore = 0;
+
+    // Try combinations of horizontal lines (limit to top 5)
+    NSInteger hLimit = MIN(5, self.horizontalLines.count);
+    NSInteger vLimit = MIN(5, self.verticalLines.count);
+
+    for (NSInteger i = 0; i < hLimit; i++) {
+        for (NSInteger j = i + 1; j < hLimit; j++) {
+            DetectedLine *h1 = self.horizontalLines[i];
+            DetectedLine *h2 = self.horizontalLines[j];
+
+            // Check if roughly parallel (angle difference < 15°)
+            CGFloat angleDiff = fabs(h1.angle - h2.angle);
+            if (angleDiff > 15 && angleDiff < 165) continue;
+
+            // Determine which is top/bottom based on Y position
+            CGFloat y1 = (h1.start.y + h1.end.y) / 2;
+            CGFloat y2 = (h2.start.y + h2.end.y) / 2;
+            DetectedLine *top = (y1 > y2) ? h1 : h2;
+            DetectedLine *bottom = (y1 > y2) ? h2 : h1;
+
+            CGFloat courtHeight = fabs(y1 - y2);
+            if (courtHeight < 0.1) continue;  // Too small
+
+            // Try combinations of vertical lines
+            for (NSInteger k = 0; k < vLimit; k++) {
+                for (NSInteger l = k + 1; l < vLimit; l++) {
+                    DetectedLine *v1 = self.verticalLines[k];
+                    DetectedLine *v2 = self.verticalLines[l];
+
+                    // Check parallel
+                    CGFloat vAngleDiff = fabs(v1.angle - v2.angle);
+                    if (vAngleDiff > 15 && vAngleDiff < 165) continue;
+
+                    // Determine left/right
+                    CGFloat x1 = (v1.start.x + v1.end.x) / 2;
+                    CGFloat x2 = (v2.start.x + v2.end.x) / 2;
+                    DetectedLine *left = (x1 < x2) ? v1 : v2;
+                    DetectedLine *right = (x1 < x2) ? v2 : v1;
+
+                    CGFloat courtWidth = fabs(x1 - x2);
+                    if (courtWidth < 0.1) continue;  // Too small
+
+                    // Check aspect ratio
+                    CGFloat aspect = courtWidth / courtHeight;
+                    if (fabs(aspect - fibaAspect) > aspectTolerance) continue;
+
+                    // Check minimum area (at least 10% of screen)
+                    CGFloat area = courtWidth * courtHeight;
+                    if (area < 0.10) continue;
+
+                    // Score this configuration
+                    CGFloat score = (top.length + bottom.length + left.length + right.length) / 4.0;
+                    score *= (1.0 - fabs(aspect - fibaAspect) / aspectTolerance);  // Prefer closer to FIBA aspect
+                    score *= area;  // Prefer larger courts
+
+                    if (score > bestRectScore) {
+                        bestRectScore = score;
+                        bestTop = top;
+                        bestBottom = bottom;
+                        bestLeft = left;
+                        bestRight = right;
+                    }
+                }
+            }
+        }
+    }
+
+    // Build court lines from best match
+    if (bestRectScore > 0) {
+        // Add the four boundary lines
+        [self addLine:bestTop name:@"baseline" toArray:courtLines];
+        [self addLine:bestBottom name:@"midcourt" toArray:courtLines];
+        [self addLine:bestLeft name:@"sideline_left" toArray:courtLines];
+        [self addLine:bestRight name:@"sideline_right" toArray:courtLines];
+        matchedLines = 4;
+
+        // Calculate court bounds for finding interior lines
+        CGFloat courtLeft = MIN((bestLeft.start.x + bestLeft.end.x) / 2, (bestRight.start.x + bestRight.end.x) / 2);
+        CGFloat courtRight = MAX((bestLeft.start.x + bestLeft.end.x) / 2, (bestRight.start.x + bestRight.end.x) / 2);
+        CGFloat courtTop = MAX((bestTop.start.y + bestTop.end.y) / 2, (bestBottom.start.y + bestBottom.end.y) / 2);
+        CGFloat courtBottom = MIN((bestTop.start.y + bestTop.end.y) / 2, (bestBottom.start.y + bestBottom.end.y) / 2);
+        CGFloat courtWidth = courtRight - courtLeft;
+        CGFloat courtHeight = courtTop - courtBottom;
+
+        // Look for free-throw line (horizontal, inside court, at ~41% from baseline)
+        CGFloat freeThrowExpectedY = courtBottom + courtHeight * 0.414;  // 5.8m / 14m
+        for (DetectedLine *h in self.horizontalLines) {
+            if (h == bestTop || h == bestBottom) continue;
+
+            CGFloat y = (h.start.y + h.end.y) / 2;
+            CGFloat x = (h.start.x + h.end.x) / 2;
+
+            // Check if inside court horizontally
+            if (x < courtLeft || x > courtRight) continue;
+
+            // Check if at expected Y position (±10% of court height)
+            if (fabs(y - freeThrowExpectedY) < courtHeight * 0.15) {
+                [self addLine:h name:@"freethrow" toArray:courtLines];
+                matchedLines++;
+                break;
+            }
+        }
+
+        // Look for lane lines (vertical, inside court, symmetric)
+        CGFloat laneExpectedX = courtWidth * 0.163;  // (4.9m / 2) / 15m
+        for (DetectedLine *v in self.verticalLines) {
+            if (v == bestLeft || v == bestRight) continue;
+
+            CGFloat x = (v.start.x + v.end.x) / 2;
+            CGFloat y = (v.start.y + v.end.y) / 2;
+
+            // Check if inside court
+            if (y < courtBottom || y > courtTop) continue;
+
+            // Check if at expected X position (lane line)
+            CGFloat distFromCenter = fabs(x - (courtLeft + courtWidth / 2));
+            if (fabs(distFromCenter - laneExpectedX) < courtWidth * 0.1) {
+                [self addLine:v name:@"lane" toArray:courtLines];
+                matchedLines++;
+            }
+        }
+
+        matchScore = (CGFloat)matchedLines / 6.0;  // 6 expected lines for half court
+        result.courtFound = matchScore >= 0.5;  // At least 3 lines matched
+    } else {
+        // No valid rectangle found, just show all detected lines
+        for (DetectedLine *line in self.horizontalLines) {
+            [self addLine:line name:@"horizontal" toArray:courtLines];
+        }
+        for (DetectedLine *line in self.verticalLines) {
+            [self addLine:line name:@"vertical" toArray:courtLines];
+        }
+    }
+
+    // Create pose info for display
+    CourtPose *pose = [[CourtPose alloc] init];
+    pose.matchScore = matchScore;
+    if (bestTop && bestBottom && bestLeft && bestRight) {
+        pose.centerX = ((bestLeft.start.x + bestLeft.end.x) / 2 + (bestRight.start.x + bestRight.end.x) / 2) / 2;
+        pose.centerY = ((bestTop.start.y + bestTop.end.y) / 2 + (bestBottom.start.y + bestBottom.end.y) / 2) / 2;
+    }
+
+    result.bestPose = pose;
+    result.projectedLines = courtLines;
+
+    return result;
+}
+
+- (void)addLine:(DetectedLine *)line name:(NSString *)name toArray:(NSMutableArray<ProjectedLine *> *)array {
+    ProjectedLine *pl = [[ProjectedLine alloc] init];
+    pl.start = line.start;
+    pl.end = line.end;
+    pl.name = name;
+    pl.isVisible = YES;
+    [array addObject:pl];
+}
+
+#pragma mark - Helpers
+
+- (void)reportNoCourtFound {
+    CourtDetectionResult *result = [[CourtDetectionResult alloc] init];
+    result.courtFound = NO;
+    result.projectedLines = @[];
 
     dispatch_async(dispatch_get_main_queue(), ^{
         [self.delegate courtLineDetector:self didDetectResult:result];
     });
 }
-
-#pragma mark - Edge Detection
-
-- (CIImage *)createEdgeImage:(CIImage *)inputImage {
-    // Grayscale
-    CIFilter *gray = [CIFilter filterWithName:@"CIColorControls"];
-    [gray setValue:inputImage forKey:kCIInputImageKey];
-    [gray setValue:@0 forKey:kCIInputSaturationKey];
-    [gray setValue:@1.3 forKey:kCIInputContrastKey];
-
-    // Edge detection
-    CIFilter *edges = [CIFilter filterWithName:@"CIEdges"];
-    [edges setValue:gray.outputImage forKey:kCIInputImageKey];
-    [edges setValue:@(self.edgeThreshold) forKey:kCIInputIntensityKey];
-
-    return edges.outputImage;
-}
-
-- (NSData *)sampleEdgeImage:(CIImage *)edgeImage extent:(CGRect)extent {
-    NSInteger sampleWidth = 128;
-    NSInteger sampleHeight = 128;
-
-    // Render edge image to a small bitmap for fast sampling
-    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceGray();
-    NSMutableData *data = [NSMutableData dataWithLength:sampleWidth * sampleHeight];
-
-    CGContextRef context = CGBitmapContextCreate(data.mutableBytes,
-                                                  sampleWidth, sampleHeight,
-                                                  8, sampleWidth,
-                                                  colorSpace, kCGImageAlphaNone);
-    CGColorSpaceRelease(colorSpace);
-
-    if (!context) return nil;
-
-    // Scale and render
-    CGContextScaleCTM(context, sampleWidth / extent.size.width, sampleHeight / extent.size.height);
-
-    CGImageRef cgImage = [self.ciContext createCGImage:edgeImage fromRect:extent];
-    if (cgImage) {
-        CGContextDrawImage(context, extent, cgImage);
-        CGImageRelease(cgImage);
-    }
-
-    CGContextRelease(context);
-
-    return data;
-}
-
-#pragma mark - Pose Search
-
-- (CourtPose *)findBestPose:(NSData *)edgeData
-                sampleWidth:(NSInteger)sampleWidth
-               sampleHeight:(NSInteger)sampleHeight {
-
-    CourtPose *bestPose = [[CourtPose alloc] init];
-    bestPose.scale = 0.4;  // Default to reasonable size
-    CGFloat bestScore = 0;
-
-    const uint8_t *pixels = edgeData.bytes;
-
-    // Constraint 1: Only search reasonable rotations (0°, 90°, 180°, 270° ±15°)
-    // Basketball courts are rectangular, so only these rotations make sense
-    CGFloat validRotations[] = {0, 90, 180, 270};
-    NSInteger rotationCount = 4;
-
-    // Constraint 2: Minimum scale 0.35 ensures court is at least ~10% of screen area
-    // (0.35 * 0.35 ≈ 0.12 = 12% area coverage)
-    CGFloat minScale = 0.35;
-    CGFloat maxScale = 0.9;
-
-    // Constraint 3: Perspective limited to realistic camera angles
-    CGFloat maxPerspective = 0.25;
-
-    // Coarse search with constraints
-    for (NSInteger ri = 0; ri < rotationCount; ri++) {
-        CGFloat baseRotation = validRotations[ri];
-
-        for (CGFloat rotOffset = -15; rotOffset <= 15; rotOffset += 15) {
-            CGFloat rotation = baseRotation + rotOffset;
-
-            for (CGFloat scale = minScale; scale <= maxScale; scale += 0.12) {
-                for (CGFloat cx = 0.2; cx <= 0.8; cx += 0.12) {
-                    for (CGFloat cy = 0.15; cy <= 0.85; cy += 0.12) {
-                        for (CGFloat perspY = -maxPerspective; perspY <= maxPerspective; perspY += 0.12) {
-
-                            CourtPose *pose = [[CourtPose alloc] init];
-                            pose.centerX = cx;
-                            pose.centerY = cy;
-                            pose.rotation = rotation;
-                            pose.scale = scale;
-                            pose.perspectiveY = perspY;
-
-                            CGFloat score = [self scorePose:pose
-                                                     pixels:pixels
-                                                      width:sampleWidth
-                                                     height:sampleHeight];
-
-                            if (score > bestScore) {
-                                bestScore = score;
-                                bestPose = [pose copy];
-                                bestPose.matchScore = score;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Fine search around best pose
-    if (bestScore > 0.05) {
-        bestPose = [self refinePose:bestPose
-                             pixels:pixels
-                              width:sampleWidth
-                             height:sampleHeight
-                           minScale:minScale];
-    }
-
-    return bestPose;
-}
-
-- (CourtPose *)refinePose:(CourtPose *)initialPose
-                   pixels:(const uint8_t *)pixels
-                    width:(NSInteger)width
-                   height:(NSInteger)height
-                 minScale:(CGFloat)minScale {
-
-    CourtPose *bestPose = [initialPose copy];
-    CGFloat bestScore = initialPose.matchScore;
-
-    // Fine search with smaller steps, but respect constraints
-    CGFloat rotationRange = 12;  // Only ±12° fine adjustment
-    CGFloat scaleRange = 0.08;
-    CGFloat posRange = 0.08;
-    CGFloat perspRange = 0.1;
-    CGFloat maxPerspective = 0.25;
-
-    for (CGFloat dr = -rotationRange; dr <= rotationRange; dr += 3) {
-        for (CGFloat ds = -scaleRange; ds <= scaleRange; ds += 0.02) {
-            CGFloat newScale = initialPose.scale + ds;
-            if (newScale < minScale) continue;  // Enforce minimum scale
-
-            for (CGFloat dx = -posRange; dx <= posRange; dx += 0.02) {
-                for (CGFloat dy = -posRange; dy <= posRange; dy += 0.02) {
-                    for (CGFloat dpy = -perspRange; dpy <= perspRange; dpy += 0.04) {
-                        CGFloat newPerspY = initialPose.perspectiveY + dpy;
-                        if (fabs(newPerspY) > maxPerspective) continue;  // Enforce perspective limit
-
-                        CourtPose *pose = [[CourtPose alloc] init];
-                        pose.centerX = initialPose.centerX + dx;
-                        pose.centerY = initialPose.centerY + dy;
-                        pose.rotation = initialPose.rotation + dr;
-                        pose.scale = newScale;
-                        pose.perspectiveY = newPerspY;
-
-                        CGFloat score = [self scorePose:pose pixels:pixels width:width height:height];
-
-                        if (score > bestScore) {
-                            bestScore = score;
-                            bestPose = [pose copy];
-                            bestPose.matchScore = score;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    return bestPose;
-}
-
-#pragma mark - Scoring
-
-- (CGFloat)scorePose:(CourtPose *)pose
-              pixels:(const uint8_t *)pixels
-               width:(NSInteger)width
-              height:(NSInteger)height {
-
-    CGFloat totalScore = 0;
-    NSInteger sampleCount = 0;
-
-    CGFloat cosR = cos(pose.rotation * M_PI / 180.0);
-    CGFloat sinR = sin(pose.rotation * M_PI / 180.0);
-
-    for (TemplateLine *templateLine in self.courtTemplate) {
-        // Transform template line to image coordinates
-        CGPoint p1 = [self transformPoint:templateLine.start
-                                 withPose:pose
-                                     cosR:cosR sinR:sinR];
-        CGPoint p2 = [self transformPoint:templateLine.end
-                                 withPose:pose
-                                     cosR:cosR sinR:sinR];
-
-        // Sample along the line
-        CGFloat lineLength = hypot(p2.x - p1.x, p2.y - p1.y);
-        NSInteger samples = MAX(5, (NSInteger)(lineLength * width));
-
-        for (NSInteger i = 0; i <= samples; i++) {
-            CGFloat t = (CGFloat)i / samples;
-            CGFloat x = p1.x + t * (p2.x - p1.x);
-            CGFloat y = p1.y + t * (p2.y - p1.y);
-
-            // Check bounds
-            if (x < 0 || x >= 1 || y < 0 || y >= 1) continue;
-
-            // Sample edge image
-            NSInteger px = (NSInteger)(x * (width - 1));
-            NSInteger py = (NSInteger)(y * (height - 1));
-            NSInteger idx = py * width + px;
-
-            CGFloat edgeValue = pixels[idx] / 255.0;
-            totalScore += edgeValue;
-            sampleCount++;
-        }
-    }
-
-    return sampleCount > 0 ? totalScore / sampleCount : 0;
-}
-
-- (CGPoint)transformPoint:(CGPoint)point
-                 withPose:(CourtPose *)pose
-                     cosR:(CGFloat)cosR
-                     sinR:(CGFloat)sinR {
-
-    // Apply scale
-    CGFloat x = point.x * pose.scale;
-    CGFloat y = point.y * pose.scale;
-
-    // Apply perspective (simple linear perspective)
-    CGFloat perspFactor = 1.0 + point.y * pose.perspectiveY;
-    x *= perspFactor;
-
-    // Apply rotation
-    CGFloat rx = x * cosR - y * sinR;
-    CGFloat ry = x * sinR + y * cosR;
-
-    // Apply translation (convert from -0.5..0.5 to 0..1)
-    rx += pose.centerX;
-    ry += pose.centerY;
-
-    return CGPointMake(rx, ry);
-}
-
-#pragma mark - Projection
-
-- (NSArray<ProjectedLine *> *)projectTemplateWithPose:(CourtPose *)pose {
-    NSMutableArray *projected = [NSMutableArray array];
-
-    CGFloat cosR = cos(pose.rotation * M_PI / 180.0);
-    CGFloat sinR = sin(pose.rotation * M_PI / 180.0);
-
-    for (TemplateLine *templateLine in self.courtTemplate) {
-        ProjectedLine *line = [[ProjectedLine alloc] init];
-        line.name = templateLine.name;
-
-        line.start = [self transformPoint:templateLine.start withPose:pose cosR:cosR sinR:sinR];
-        line.end = [self transformPoint:templateLine.end withPose:pose cosR:cosR sinR:sinR];
-
-        // Check if line is visible
-        line.isVisible = [self isLineVisible:line];
-
-        [projected addObject:line];
-    }
-
-    return projected;
-}
-
-- (BOOL)isLineVisible:(ProjectedLine *)line {
-    // Check if at least part of line is in view (0-1 range)
-    CGFloat minX = MIN(line.start.x, line.end.x);
-    CGFloat maxX = MAX(line.start.x, line.end.x);
-    CGFloat minY = MIN(line.start.y, line.end.y);
-    CGFloat maxY = MAX(line.start.y, line.end.y);
-
-    return !(maxX < 0 || minX > 1 || maxY < 0 || minY > 1);
-}
-
-#pragma mark - Temporal Smoothing
-
-- (CourtPose *)smoothPose:(CourtPose *)newPose withPrevious:(CourtPose *)prevPose {
-    CGFloat alpha = 0.7;  // Smoothing factor (higher = more responsive)
-
-    CourtPose *smoothed = [[CourtPose alloc] init];
-    smoothed.centerX = alpha * newPose.centerX + (1 - alpha) * prevPose.centerX;
-    smoothed.centerY = alpha * newPose.centerY + (1 - alpha) * prevPose.centerY;
-    smoothed.scale = alpha * newPose.scale + (1 - alpha) * prevPose.scale;
-    smoothed.perspectiveY = alpha * newPose.perspectiveY + (1 - alpha) * prevPose.perspectiveY;
-    smoothed.matchScore = newPose.matchScore;
-
-    // Handle rotation wrap-around
-    CGFloat rotDiff = newPose.rotation - prevPose.rotation;
-    if (rotDiff > 180) rotDiff -= 360;
-    if (rotDiff < -180) rotDiff += 360;
-    smoothed.rotation = prevPose.rotation + alpha * rotDiff;
-    if (smoothed.rotation < 0) smoothed.rotation += 360;
-    if (smoothed.rotation >= 360) smoothed.rotation -= 360;
-
-    return smoothed;
-}
-
-#pragma mark - Error Handling
 
 - (void)reportError:(NSString *)error {
     dispatch_async(dispatch_get_main_queue(), ^{
