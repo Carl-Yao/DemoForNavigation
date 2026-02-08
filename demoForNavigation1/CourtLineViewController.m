@@ -198,7 +198,7 @@ static const CGFloat kHandleSize = 44.0;
     [self.calibrateButton setTitle:@"手动校准" forState:UIControlStateNormal];
     [self.calibrateButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
     self.calibrateButton.backgroundColor = [UIColor colorWithRed:0.6 green:0.4 blue:0.8 alpha:1.0];
-    self.calibrateButton.layer.cornerRadius = 20;
+    self.calibrateButton.layer.cornerRadius = 25;
     self.calibrateButton.titleLabel.font = [UIFont boldSystemFontOfSize:16];
     self.calibrateButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.calibrateButton addTarget:self action:@selector(toggleCalibration) forControlEvents:UIControlEventTouchUpInside];
@@ -217,31 +217,30 @@ static const CGFloat kHandleSize = 44.0;
 
     // Layout constraints
     [NSLayoutConstraint activateConstraints:@[
-        // Camera container
-        [self.cameraContainerView.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:10],
+        // Camera container - use 1:1 aspect ratio to leave more room for buttons
+        [self.cameraContainerView.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:8],
         [self.cameraContainerView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:10],
         [self.cameraContainerView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-10],
-        [self.cameraContainerView.heightAnchor constraintEqualToAnchor:self.cameraContainerView.widthAnchor multiplier:4.0/3.0],
+        [self.cameraContainerView.heightAnchor constraintEqualToAnchor:self.cameraContainerView.widthAnchor multiplier:1.0],
 
         // Status label
-        [self.statusLabel.topAnchor constraintEqualToAnchor:self.cameraContainerView.bottomAnchor constant:15],
+        [self.statusLabel.topAnchor constraintEqualToAnchor:self.cameraContainerView.bottomAnchor constant:10],
         [self.statusLabel.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
 
         // Score label
-        [self.scoreLabel.topAnchor constraintEqualToAnchor:self.statusLabel.bottomAnchor constant:8],
+        [self.scoreLabel.topAnchor constraintEqualToAnchor:self.statusLabel.bottomAnchor constant:4],
         [self.scoreLabel.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:20],
         [self.scoreLabel.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20],
 
-        // Calibrate button
-        [self.calibrateButton.topAnchor constraintEqualToAnchor:self.scoreLabel.bottomAnchor constant:20],
-        [self.calibrateButton.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
-        [self.calibrateButton.widthAnchor constraintEqualToConstant:140],
-        [self.calibrateButton.heightAnchor constraintEqualToConstant:40],
+        // Buttons side by side at bottom
+        [self.calibrateButton.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor constant:-15],
+        [self.calibrateButton.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:20],
+        [self.calibrateButton.widthAnchor constraintEqualToConstant:130],
+        [self.calibrateButton.heightAnchor constraintEqualToConstant:50],
 
-        // Start button
-        [self.startButton.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor constant:-20],
-        [self.startButton.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
-        [self.startButton.widthAnchor constraintEqualToConstant:200],
+        [self.startButton.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor constant:-15],
+        [self.startButton.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20],
+        [self.startButton.widthAnchor constraintEqualToConstant:130],
         [self.startButton.heightAnchor constraintEqualToConstant:50],
     ]];
 }
