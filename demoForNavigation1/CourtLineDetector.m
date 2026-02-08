@@ -313,33 +313,53 @@
                sampleHeight:(NSInteger)sampleHeight {
 
     CourtPose *bestPose = [[CourtPose alloc] init];
+    bestPose.scale = 0.4;  // Default to reasonable size
     CGFloat bestScore = 0;
 
     const uint8_t *pixels = edgeData.bytes;
 
-    // Coarse search
-    for (CGFloat rotation = 0; rotation < 360; rotation += 30) {
-        for (CGFloat scale = 0.2; scale <= 0.8; scale += 0.15) {
-            for (CGFloat cx = 0.2; cx <= 0.8; cx += 0.15) {
-                for (CGFloat cy = 0.2; cy <= 0.8; cy += 0.15) {
-                    for (CGFloat perspY = -0.3; perspY <= 0.3; perspY += 0.15) {
+    // Constraint 1: Only search reasonable rotations (0°, 90°, 180°, 270° ±15°)
+    // Basketball courts are rectangular, so only these rotations make sense
+    CGFloat validRotations[] = {0, 90, 180, 270};
+    NSInteger rotationCount = 4;
 
-                        CourtPose *pose = [[CourtPose alloc] init];
-                        pose.centerX = cx;
-                        pose.centerY = cy;
-                        pose.rotation = rotation;
-                        pose.scale = scale;
-                        pose.perspectiveY = perspY;
+    // Constraint 2: Minimum scale 0.35 ensures court is at least ~10% of screen area
+    // (0.35 * 0.35 ≈ 0.12 = 12% area coverage)
+    CGFloat minScale = 0.35;
+    CGFloat maxScale = 0.9;
 
-                        CGFloat score = [self scorePose:pose
-                                                 pixels:pixels
-                                                  width:sampleWidth
-                                                 height:sampleHeight];
+    // Constraint 3: Perspective limited to realistic camera angles
+    CGFloat maxPerspective = 0.25;
 
-                        if (score > bestScore) {
-                            bestScore = score;
-                            bestPose = [pose copy];
-                            bestPose.matchScore = score;
+    // Coarse search with constraints
+    for (NSInteger ri = 0; ri < rotationCount; ri++) {
+        CGFloat baseRotation = validRotations[ri];
+
+        for (CGFloat rotOffset = -15; rotOffset <= 15; rotOffset += 15) {
+            CGFloat rotation = baseRotation + rotOffset;
+
+            for (CGFloat scale = minScale; scale <= maxScale; scale += 0.12) {
+                for (CGFloat cx = 0.2; cx <= 0.8; cx += 0.12) {
+                    for (CGFloat cy = 0.15; cy <= 0.85; cy += 0.12) {
+                        for (CGFloat perspY = -maxPerspective; perspY <= maxPerspective; perspY += 0.12) {
+
+                            CourtPose *pose = [[CourtPose alloc] init];
+                            pose.centerX = cx;
+                            pose.centerY = cy;
+                            pose.rotation = rotation;
+                            pose.scale = scale;
+                            pose.perspectiveY = perspY;
+
+                            CGFloat score = [self scorePose:pose
+                                                     pixels:pixels
+                                                      width:sampleWidth
+                                                     height:sampleHeight];
+
+                            if (score > bestScore) {
+                                bestScore = score;
+                                bestPose = [pose copy];
+                                bestPose.matchScore = score;
+                            }
                         }
                     }
                 }
@@ -352,7 +372,8 @@
         bestPose = [self refinePose:bestPose
                              pixels:pixels
                               width:sampleWidth
-                             height:sampleHeight];
+                             height:sampleHeight
+                           minScale:minScale];
     }
 
     return bestPose;
@@ -361,29 +382,36 @@
 - (CourtPose *)refinePose:(CourtPose *)initialPose
                    pixels:(const uint8_t *)pixels
                     width:(NSInteger)width
-                   height:(NSInteger)height {
+                   height:(NSInteger)height
+                 minScale:(CGFloat)minScale {
 
     CourtPose *bestPose = [initialPose copy];
     CGFloat bestScore = initialPose.matchScore;
 
-    // Fine search with smaller steps
-    CGFloat rotationRange = 20;
-    CGFloat scaleRange = 0.1;
-    CGFloat posRange = 0.1;
-    CGFloat perspRange = 0.15;
+    // Fine search with smaller steps, but respect constraints
+    CGFloat rotationRange = 12;  // Only ±12° fine adjustment
+    CGFloat scaleRange = 0.08;
+    CGFloat posRange = 0.08;
+    CGFloat perspRange = 0.1;
+    CGFloat maxPerspective = 0.25;
 
-    for (CGFloat dr = -rotationRange; dr <= rotationRange; dr += 5) {
-        for (CGFloat ds = -scaleRange; ds <= scaleRange; ds += 0.03) {
-            for (CGFloat dx = -posRange; dx <= posRange; dx += 0.03) {
-                for (CGFloat dy = -posRange; dy <= posRange; dy += 0.03) {
-                    for (CGFloat dpy = -perspRange; dpy <= perspRange; dpy += 0.05) {
+    for (CGFloat dr = -rotationRange; dr <= rotationRange; dr += 3) {
+        for (CGFloat ds = -scaleRange; ds <= scaleRange; ds += 0.02) {
+            CGFloat newScale = initialPose.scale + ds;
+            if (newScale < minScale) continue;  // Enforce minimum scale
+
+            for (CGFloat dx = -posRange; dx <= posRange; dx += 0.02) {
+                for (CGFloat dy = -posRange; dy <= posRange; dy += 0.02) {
+                    for (CGFloat dpy = -perspRange; dpy <= perspRange; dpy += 0.04) {
+                        CGFloat newPerspY = initialPose.perspectiveY + dpy;
+                        if (fabs(newPerspY) > maxPerspective) continue;  // Enforce perspective limit
 
                         CourtPose *pose = [[CourtPose alloc] init];
                         pose.centerX = initialPose.centerX + dx;
                         pose.centerY = initialPose.centerY + dy;
                         pose.rotation = initialPose.rotation + dr;
-                        pose.scale = MAX(0.1, initialPose.scale + ds);
-                        pose.perspectiveY = initialPose.perspectiveY + dpy;
+                        pose.scale = newScale;
+                        pose.perspectiveY = newPerspY;
 
                         CGFloat score = [self scorePose:pose pixels:pixels width:width height:height];
 
